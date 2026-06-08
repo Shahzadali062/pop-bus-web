@@ -84,7 +84,7 @@ function animateMarkerTo(
   marker: Marker,
   from: MarkerPosition,
   to: MarkerPosition,
-  duration = 2800,
+  duration = 1850,
   onUpdate?: (position: MarkerPosition) => void
 ) {
   const startTime = performance.now();
@@ -92,7 +92,12 @@ function animateMarkerTo(
   function animate(currentTime: number) {
     const elapsed = currentTime - startTime;
     const progress = Math.min(elapsed / duration, 1);
-    const eased = 1 - Math.pow(1 - progress, 3);
+
+    // Smooth ease-in-out movement, like ride-hailing apps
+    const eased =
+      progress < 0.5
+        ? 4 * progress * progress * progress
+        : 1 - Math.pow(-2 * progress + 2, 3) / 2;
 
     const lng = from.lng + (to.lng - from.lng) * eased;
     const lat = from.lat + (to.lat - from.lat) * eased;
@@ -115,6 +120,7 @@ export default function App() {
   const mapRef = useRef<MapLibreMap | null>(null);
   const markerRefs = useRef<Record<string, Marker>>({});
   const markerPositionRefs = useRef<Record<string, MarkerPosition>>({});
+  const animationFrameRefs = useRef<Record<string, number>>({});
 
   const [buses, setBuses] = useState<Record<string, BusLocation>>({});
 
@@ -127,7 +133,7 @@ export default function App() {
       container: mapContainerRef.current,
       style: "https://tiles.openfreemap.org/styles/liberty",
       center: CHULA_CENTER,
-      zoom: 15.4,
+      zoom: 15.2,
       pitch: 68,
       bearing: -28,
     });
@@ -160,13 +166,26 @@ export default function App() {
       const locationMap: Record<string, BusLocation> = {};
 
       locations.forEach((location) => {
-        locationMap[location.busId.trim().toUpperCase()] = {
+        const cleanBusId = location.busId.trim().toUpperCase();
+        locationMap[cleanBusId] = {
           ...location,
-          busId: location.busId.trim().toUpperCase(),
+          busId: cleanBusId,
         };
       });
 
       setBuses(locationMap);
+    });
+
+    socket.on("bus:location-updated", (location: BusLocation) => {
+      const cleanBusId = location.busId.trim().toUpperCase();
+
+      setBuses((previous) => ({
+        ...previous,
+        [cleanBusId]: {
+          ...location,
+          busId: cleanBusId,
+        },
+      }));
     });
 
     socket.on("bus:removed", ({ busId }: { busId: string }) => {
@@ -209,7 +228,11 @@ export default function App() {
         const marker = markerRefs.current[busId];
         const currentPosition = markerPositionRefs.current[busId] ?? nextPosition;
 
-        animateMarkerTo(marker, currentPosition, nextPosition, 2800, (position) => {
+        if (animationFrameRefs.current[busId]) {
+          cancelAnimationFrame(animationFrameRefs.current[busId]);
+        }
+
+        animateMarkerTo(marker, currentPosition, nextPosition, 1850, (position) => {
           markerPositionRefs.current[busId] = position;
         });
       }
