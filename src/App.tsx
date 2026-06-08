@@ -125,6 +125,20 @@ function animateMarkerTo(
   requestAnimationFrame(animate);
 }
 
+function formatSpeed(speed: number | null) {
+  if (speed === null) return "N/A";
+  return `${(speed * 3.6).toFixed(1)} km/h`;
+}
+
+function formatUpdated(timestamp: number) {
+  const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+
+  if (seconds < 60) return `${seconds}s ago`;
+
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}m ago`;
+}
+
 export default function App() {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -132,9 +146,29 @@ export default function App() {
   const markerPositionRefs = useRef<Record<string, MarkerPosition>>({});
 
   const [buses, setBuses] = useState<Record<string, BusLocation>>({});
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  const busList = Object.values(buses);
+  const busList = Object.values(buses).sort((a, b) =>
+    a.busId.localeCompare(b.busId)
+  );
+
   const activeBusCount = busList.length;
+
+  function focusBus(bus: BusLocation) {
+    const map = mapRef.current;
+
+    if (!map) return;
+
+    map.easeTo({
+      center: [bus.longitude, bus.latitude],
+      zoom: 17,
+      pitch: 68,
+      bearing: -28,
+      duration: 1000,
+    });
+
+    setDropdownOpen(false);
+  }
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
@@ -261,8 +295,40 @@ export default function App() {
     <main className="map-page">
       <div ref={mapContainerRef} className="map" />
 
-      <div className="active-bus-pill">
-        Active Buses: {activeBusCount}
+      <div className="active-bus-panel">
+        <button
+          className="active-bus-pill"
+          onClick={() => setDropdownOpen((previous) => !previous)}
+        >
+          Active Buses: {activeBusCount}
+          <span className={dropdownOpen ? "chevron open" : "chevron"}>⌄</span>
+        </button>
+
+        {dropdownOpen && (
+          <div className="bus-dropdown">
+            {busList.length === 0 && (
+              <div className="empty-dropdown">No active buses</div>
+            )}
+
+            {busList.map((bus) => (
+              <button
+                key={bus.busId}
+                className="bus-dropdown-item"
+                onClick={() => focusBus(bus)}
+              >
+                <div>
+                  <strong>{bus.busId}</strong>
+                  <span>{bus.latitude.toFixed(5)}, {bus.longitude.toFixed(5)}</span>
+                </div>
+
+                <div className="bus-meta">
+                  <span>{formatSpeed(bus.speed)}</span>
+                  <span>{formatUpdated(bus.timestamp)}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </main>
   );

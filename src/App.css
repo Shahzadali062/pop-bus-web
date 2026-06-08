@@ -29,20 +29,104 @@ body {
   height: 100%;
 }
 
-.active-bus-pill {
+.active-bus-panel {
   position: absolute;
   top: 22px;
   right: 22px;
-  z-index: 30;
+  z-index: 40;
+  width: 280px;
+}
+
+.active-bus-pill {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 13px 18px;
   border-radius: 999px;
-  background: rgba(2, 6, 23, 0.88);
+  background: rgba(2, 6, 23, 0.9);
   color: #ffffff;
   font-size: 14px;
   font-weight: 950;
   border: 1px solid rgba(125, 211, 252, 0.38);
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.42);
   backdrop-filter: blur(14px);
+  cursor: pointer;
+}
+
+.chevron {
+  display: inline-block;
+  transition: transform 0.2s ease;
+  font-size: 16px;
+}
+
+.chevron.open {
+  transform: rotate(180deg);
+}
+
+.bus-dropdown {
+  margin-top: 10px;
+  border-radius: 22px;
+  overflow: hidden;
+  background: rgba(2, 6, 23, 0.92);
+  border: 1px solid rgba(125, 211, 252, 0.28);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.48);
+  backdrop-filter: blur(16px);
+}
+
+.empty-dropdown {
+  padding: 16px;
+  color: #cbd5e1;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.bus-dropdown-item {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 15px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+  color: white;
+  text-align: left;
+  cursor: pointer;
+}
+
+.bus-dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.bus-dropdown-item:hover {
+  background: rgba(37, 99, 235, 0.28);
+}
+
+.bus-dropdown-item strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 950;
+}
+
+.bus-dropdown-item span {
+  display: block;
+  margin-top: 3px;
+  color: #bae6fd;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.bus-meta {
+  min-width: 70px;
+  text-align: right;
+}
+
+.bus-meta span {
+  color: #e0f2fe;
+  font-size: 11px;
 }
 
 .maplibregl-marker {
@@ -151,4 +235,17 @@ body {
 
 .maplibregl-ctrl button span {
   filter: invert(1);
+}
+
+@media (max-width: 560px) {
+  .active-bus-panel {
+    top: 14px;
+    right: 14px;
+    width: 245px;
+  }
+
+  .active-bus-pill {
+    font-size: 13px;
+    padding: 12px 14px;
+  }
 }
