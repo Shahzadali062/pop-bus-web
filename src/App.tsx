@@ -84,24 +84,11 @@ function createBusMarkerElement(busId: string) {
   element.className = "bus-marker";
   element.innerHTML = `
     <div class="bus-pulse"></div>
-    <div class="bus-vehicle">
-      <div class="bus-window-row"></div>
-      <div class="bus-light left"></div>
-      <div class="bus-light right"></div>
-    </div>
+    <div class="bus-vehicle"></div>
     <div class="bus-label">${busId}</div>
   `;
 
   return element;
-}
-
-function rotateBusMarker(marker: Marker, _heading: number | null, _map: MapLibreMap) {
-  const element = marker.getElement();
-  const vehicle = element.querySelector(".bus-vehicle") as HTMLDivElement | null;
-
-  if (!vehicle) return;
-
-  vehicle.style.transform = "none";
 }
 
 function animateMarkerTo(
@@ -145,7 +132,6 @@ export default function App() {
   const markerPositionRefs = useRef<Record<string, MarkerPosition>>({});
 
   const [buses, setBuses] = useState<Record<string, BusLocation>>({});
-  const [connected, setConnected] = useState(false);
 
   const busList = Object.values(buses);
   const activeBusCount = busList.length;
@@ -175,17 +161,6 @@ export default function App() {
       add3DBuildings(map);
     });
 
-    map.on("rotate", () => {
-      Object.values(markerRefs.current).forEach((marker) => {
-        const busId = marker.getElement().querySelector(".bus-label")?.textContent || "";
-        const bus = buses[busId];
-
-        if (bus) {
-          rotateBusMarker(marker, bus.heading, map);
-        }
-      });
-    });
-
     return () => {
       map.remove();
       mapRef.current = null;
@@ -195,14 +170,6 @@ export default function App() {
   useEffect(() => {
     const socket = io(SERVER_URL, {
       transports: ["websocket"],
-    });
-
-    socket.on("connect", () => {
-      setConnected(true);
-    });
-
-    socket.on("disconnect", () => {
-      setConnected(false);
     });
 
     socket.on("server:latest-locations", (locations: BusLocation[]) => {
@@ -267,12 +234,9 @@ export default function App() {
 
         markerRefs.current[busId] = marker;
         markerPositionRefs.current[busId] = nextPosition;
-        rotateBusMarker(marker, bus.heading, map);
       } else {
         const marker = markerRefs.current[busId];
         const currentPosition = markerPositionRefs.current[busId] ?? nextPosition;
-
-        rotateBusMarker(marker, bus.heading, map);
 
         animateMarkerTo(marker, currentPosition, nextPosition, 1850, (position) => {
           markerPositionRefs.current[busId] = position;
@@ -297,33 +261,9 @@ export default function App() {
     <main className="map-page">
       <div ref={mapContainerRef} className="map" />
 
-      <div className="top-glass-bar">
-        <div className="brand">
-          <div className="brand-mark">K</div>
-          <div>
-            <strong>KKU POP Live</strong>
-            <span>Real-time 3D bus tracking</span>
-          </div>
-        </div>
-
-        <div className="status-group">
-          <div className="status-pill">
-            <span className={connected ? "dot online" : "dot offline"}></span>
-            {connected ? "Online" : "Offline"}
-          </div>
-
-          <div className="status-pill">
-            Active Buses: {activeBusCount}
-          </div>
-        </div>
-      </div>
-
-      <div className="bottom-hint">
-        <span>Scroll to zoom</span>
-        <span>Drag to move</span>
-        <span>Rotate 3D view</span>
+      <div className="active-bus-pill">
+        Active Buses: {activeBusCount}
       </div>
     </main>
   );
 }
-
