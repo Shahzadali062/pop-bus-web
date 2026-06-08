@@ -596,3 +596,64 @@ body {
     display: none;
   }
 }
+
+.maplibregl-map {
+  font-family: Inter, Arial, sans-serif;
+}
+
+.maplibregl-canvas {
+  outline: none;
+}
+
+.marker-label {
+  position: absolute;
+  top: 58px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.9);
+  color: white;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.popup-card {
+  display: grid;
+  gap: 5px;
+  color: #0f172a;
+  font-family: Inter, Arial, sans-serif;
+}
+
+.popup-card strong {
+  font-size: 15px;
+  color: #020617;
+}
+
+.popup-card span {
+  font-size: 12px;
+  color: #334155;
+}
+
+.maplibregl-popup-content {
+  border-radius: 16px;
+  padding: 12px 14px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+}
+
+.maplibregl-ctrl-bottom-right {
+  z-index: 700;
+}
+
+.maplibregl-ctrl-group {
+  border-radius: 16px !important;
+  overflow: hidden;
+  background: rgba(15, 23, 42, 0.92) !important;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.3) !important;
+}
+
+.maplibregl-ctrl button {
+  background-color: rgba(15, 23, 42, 0.92) !important;
+}

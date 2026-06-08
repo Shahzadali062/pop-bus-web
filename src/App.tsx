@@ -1,18 +1,16 @@
-﻿import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { io } from "socket.io-client";
-import {
-  MapContainer,
+import maplibregl, {
+  GeoJSONSource,
+  Map as MapLibreMap,
   Marker,
-  Popup,
-  TileLayer,
-  useMap,
-  Polyline,
-} from "react-leaflet";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
+} from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
 import "./App.css";
 
 const SERVER_URL = "https://pop-bus-server.onrender.com";
+
+const CHULA_CENTER: [number, number] = [100.53389, 13.73604];
 
 type BusLocation = {
   busId: string;
@@ -23,34 +21,6 @@ type BusLocation = {
   heading: number | null;
   timestamp: number;
 };
-
-const busIcon = L.divIcon({
-  className: "premium-bus-marker",
-  html: `
-    <div class="marker-orbit">
-      <div class="marker-core">
-        <span>🚌</span>
-      </div>
-    </div>
-  `,
-  iconSize: [70, 70],
-  iconAnchor: [35, 35],
-  popupAnchor: [0, -34],
-});
-
-function MapFollower({ location }: { location: BusLocation | null }) {
-  const map = useMap();
-
-  useEffect(() => {
-    if (location) {
-      map.flyTo([location.latitude, location.longitude], 16, {
-        duration: 1,
-      });
-    }
-  }, [location, map]);
-
-  return null;
-}
 
 function formatSpeed(speed: number | null) {
   if (speed === null) return "N/A";
@@ -69,7 +39,6 @@ function formatHeading(heading: number | null) {
 
 function timeAgo(timestamp: number) {
   const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
-
   if (seconds < 60) return `${seconds}s ago`;
 
   const minutes = Math.floor(seconds / 60);
@@ -79,7 +48,117 @@ function timeAgo(timestamp: number) {
   return `${hours}h ago`;
 }
 
+function createEmptyRouteGeoJson() {
+  return {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        properties: {},
+        geometry: {
+          type: "LineString",
+          coordinates: [],
+        },
+      },
+    ],
+  } as any;
+}
+
+function createRouteGeoJson(points: BusLocation[]) {
+  return {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        properties: {},
+        geometry: {
+          type: "LineString",
+          coordinates: points.map((point) => [
+            point.longitude,
+            point.latitude,
+          ]),
+        },
+      },
+    ],
+  } as any;
+}
+
+function add3DBuildings(map: MapLibreMap) {
+  try {
+    const style = map.getStyle();
+    const sourceId = style.sources.openmaptiles
+      ? "openmaptiles"
+      : Object.keys(style.sources)[0];
+
+    const labelLayer = style.layers?.find(
+      (layer: any) => layer.type === "symbol" && layer.layout?.["text-field"]
+    );
+
+    if (map.getLayer("popbus-3d-buildings")) return;
+
+    map.addLayer(
+      {
+        id: "popbus-3d-buildings",
+        source: sourceId,
+        "source-layer": "building",
+        type: "fill-extrusion",
+        minzoom: 15,
+        paint: {
+          "fill-extrusion-color": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            15,
+            "#1e293b",
+            16,
+            "#334155",
+            17,
+            "#38bdf8",
+          ],
+          "fill-extrusion-height": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            15,
+            0,
+            16,
+            ["to-number", ["get", "render_height"], 20],
+          ],
+          "fill-extrusion-base": [
+            "to-number",
+            ["get", "render_min_height"],
+            0,
+          ],
+          "fill-extrusion-opacity": 0.72,
+        },
+      } as any,
+      labelLayer?.id
+    );
+  } catch (error) {
+    console.log("3D buildings layer could not be added:", error);
+  }
+}
+
+function createBusMarkerElement(busId: string) {
+  const element = document.createElement("div");
+  element.className = "premium-bus-marker";
+  element.innerHTML = `
+    <div class="marker-orbit">
+      <div class="marker-core">
+        <span>🚌</span>
+      </div>
+      <div class="marker-label">${busId}</div>
+    </div>
+  `;
+
+  return element;
+}
+
 export default function App() {
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<MapLibreMap | null>(null);
+  const markerRefs = useRef<Record<string, Marker>>({});
+
   const [serverStatus, setServerStatus] = useState("connecting");
   const [buses, setBuses] = useState<Record<string, BusLocation>>({});
   const [routeHistory, setRouteHistory] = useState<BusLocation[]>([]);
@@ -88,16 +167,13 @@ export default function App() {
   const busList = Object.values(buses);
   const firstBus = busList[0] ?? null;
 
-  const routeLine = useMemo(() => {
-    return routeHistory.map((point) => [
-      point.latitude,
-      point.longitude,
-    ]) as [number, number][];
-  }, [routeHistory]);
+  const routeLine = useMemo(() => routeHistory, [routeHistory]);
 
   async function loadRouteHistory(busId: string) {
     try {
-      const response = await fetch(`${SERVER_URL}/api/buses/${busId}/history?limit=120`);
+      const response = await fetch(
+        `${SERVER_URL}/api/buses/${busId}/history?limit=120`
+      );
       const data = await response.json();
 
       const history = Array.isArray(data.history) ? data.history : [];
@@ -110,6 +186,74 @@ export default function App() {
       setLastEvent("Route history could not be loaded");
     }
   }
+
+  useEffect(() => {
+    if (!mapContainerRef.current || mapRef.current) return;
+
+    const map = new maplibregl.Map({
+      container: mapContainerRef.current,
+      style: "https://tiles.openfreemap.org/styles/liberty",
+      center: CHULA_CENTER,
+      zoom: 16.3,
+      pitch: 64,
+      bearing: -28,
+
+    });
+
+    mapRef.current = map;
+
+    map.addControl(
+      new maplibregl.NavigationControl({
+        visualizePitch: true,
+      }),
+      "bottom-right"
+    );
+
+    map.on("load", () => {
+      add3DBuildings(map);
+
+      map.addSource("live-route", {
+        type: "geojson",
+        data: createEmptyRouteGeoJson(),
+      });
+
+      map.addLayer({
+        id: "live-route-glow",
+        type: "line",
+        source: "live-route",
+        layout: {
+          "line-cap": "round",
+          "line-join": "round",
+        },
+        paint: {
+          "line-color": "#0ea5e9",
+          "line-width": 15,
+          "line-opacity": 0.25,
+          "line-blur": 2,
+        },
+      });
+
+      map.addLayer({
+        id: "live-route-main",
+        type: "line",
+        source: "live-route",
+        layout: {
+          "line-cap": "round",
+          "line-join": "round",
+        },
+        paint: {
+          "line-color": "#38bdf8",
+          "line-width": 5,
+          "line-opacity": 0.95,
+        },
+      });
+    });
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     const socket = io(SERVER_URL, {
@@ -163,13 +307,98 @@ export default function App() {
         return updated;
       });
 
-      setLastEvent(`${location.busId} updated at ${new Date(location.timestamp).toLocaleTimeString()}`);
+      setLastEvent(
+        `${location.busId} updated at ${new Date(
+          location.timestamp
+        ).toLocaleTimeString()}`
+      );
     });
 
     return () => {
       socket.disconnect();
     };
   }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+
+    const source = map.getSource("live-route") as GeoJSONSource | undefined;
+
+    if (source) {
+      source.setData(createRouteGeoJson(routeLine));
+    }
+  }, [routeLine]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    busList.forEach((bus) => {
+      const coordinates: [number, number] = [bus.longitude, bus.latitude];
+
+      if (!markerRefs.current[bus.busId]) {
+        const markerElement = createBusMarkerElement(bus.busId);
+
+        const marker = new maplibregl.Marker({
+          element: markerElement,
+          anchor: "center",
+        })
+          .setLngLat(coordinates)
+          .setPopup(
+            new maplibregl.Popup({
+              offset: 34,
+              closeButton: false,
+            }).setHTML(`
+              <div class="popup-card">
+                <strong>${bus.busId}</strong>
+                <span>Speed: ${formatSpeed(bus.speed)}</span>
+                <span>Accuracy: ${formatAccuracy(bus.accuracy)}</span>
+                <span>Updated: ${new Date(bus.timestamp).toLocaleTimeString()}</span>
+              </div>
+            `)
+          )
+          .addTo(map);
+
+        markerRefs.current[bus.busId] = marker;
+      } else {
+        markerRefs.current[bus.busId]
+          .setLngLat(coordinates)
+          .setPopup(
+            new maplibregl.Popup({
+              offset: 34,
+              closeButton: false,
+            }).setHTML(`
+              <div class="popup-card">
+                <strong>${bus.busId}</strong>
+                <span>Speed: ${formatSpeed(bus.speed)}</span>
+                <span>Accuracy: ${formatAccuracy(bus.accuracy)}</span>
+                <span>Updated: ${new Date(bus.timestamp).toLocaleTimeString()}</span>
+              </div>
+            `)
+          );
+      }
+    });
+
+    Object.keys(markerRefs.current).forEach((busId) => {
+      const stillExists = busList.some((bus) => bus.busId === busId);
+
+      if (!stillExists) {
+        markerRefs.current[busId].remove();
+        delete markerRefs.current[busId];
+      }
+    });
+
+    if (firstBus) {
+      map.easeTo({
+        center: [firstBus.longitude, firstBus.latitude],
+        zoom: 16.6,
+        pitch: 64,
+        bearing: -28,
+        duration: 900,
+      });
+    }
+  }, [busList, firstBus]);
 
   const connectionClass =
     serverStatus === "connected" ? "status-green" : "status-red";
@@ -182,9 +411,10 @@ export default function App() {
           <div className="brand-icon">🚌</div>
           <div>
             <p className="eyebrow">Pop Bus Intelligence</p>
-            <h1>Live Fleet Command</h1>
+            <h1>3D Fleet Command</h1>
             <p className="brand-subtitle">
-              Real-time driver tracking, route trail, and live operation visibility.
+              Interactive 3D Chulalongkorn map with live driver tracking,
+              route trail, and cloud-based fleet visibility.
             </p>
           </div>
         </div>
@@ -215,8 +445,8 @@ export default function App() {
           </div>
 
           <div className="metric-card">
-            <p>Mode</p>
-            <h3>Live</h3>
+            <p>Map Mode</p>
+            <h3>3D</h3>
           </div>
 
           <div className="metric-card">
@@ -225,7 +455,7 @@ export default function App() {
           </div>
         </div>
 
-        <div className="section-label">Live Vehicle</div>
+        <div className="section-label">Live Vehicles</div>
 
         {busList.length === 0 && (
           <div className="empty-state">
@@ -301,9 +531,9 @@ export default function App() {
         <div className="map-header">
           <div>
             <p className="eyebrow">Client Showcase View</p>
-            <h2>Live Route Map</h2>
+            <h2>3D Chulalongkorn Live Map</h2>
             <span>
-              The bus marker moves automatically as the driver phone streams location.
+              Tilt, rotate, zoom, and track buses in a 3D campus-style view.
             </span>
           </div>
 
@@ -314,71 +544,15 @@ export default function App() {
         </div>
 
         <div className="map-frame">
-          <MapContainer
-            center={
-              firstBus
-                ? [firstBus.latitude, firstBus.longitude]
-                : [13.73604, 100.53389]
-            }
-            zoom={16}
-            className="map"
-            scrollWheelZoom={true}
-          >
-            <TileLayer
-              attribution='&copy; OpenStreetMap contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-
-            <MapFollower location={firstBus} />
-
-            {routeLine.length > 1 && (
-              <>
-                <Polyline
-                  positions={routeLine}
-                  pathOptions={{
-                    color: "#0ea5e9",
-                    weight: 12,
-                    opacity: 0.22,
-                  }}
-                />
-
-                <Polyline
-                  positions={routeLine}
-                  pathOptions={{
-                    color: "#2563eb",
-                    weight: 5,
-                    opacity: 0.95,
-                  }}
-                />
-              </>
-            )}
-
-            {busList.map((bus) => (
-              <Marker
-                key={bus.busId}
-                position={[bus.latitude, bus.longitude]}
-                icon={busIcon}
-              >
-                <Popup>
-                  <strong>{bus.busId}</strong>
-                  <br />
-                  Speed: {formatSpeed(bus.speed)}
-                  <br />
-                  Accuracy: {formatAccuracy(bus.accuracy)}
-                  <br />
-                  Updated: {new Date(bus.timestamp).toLocaleTimeString()}
-                </Popup>
-              </Marker>
-            ))}
-          </MapContainer>
+          <div ref={mapContainerRef} className="map" />
 
           <div className="floating-card top-left">
-            <p>Live Feed</p>
-            <strong>{serverStatus === "connected" ? "Online" : "Waiting"}</strong>
+            <p>3D Mode</p>
+            <strong>Buildings + Tilt</strong>
           </div>
 
           <div className="floating-card bottom-right">
-            <p>Cloud Backend</p>
+            <p>Live Backend</p>
             <strong>Render + Socket.IO</strong>
           </div>
         </div>
