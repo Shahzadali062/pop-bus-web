@@ -5,38 +5,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import "./App.css";
 
 const SERVER_URL = "https://pop-bus-server.onrender.com";
-
-const MAP_CENTER: [number, number] = [100.53215, 13.7392];
-
-const SIAM_SAMYAN_ROUTE: [number, number][] = [
-  [100.53488, 13.74562],
-  [100.53472, 13.74408],
-  [100.53448, 13.74255],
-  [100.53405, 13.74086],
-  [100.53342, 13.73905],
-  [100.53262, 13.73732],
-  [100.53138, 13.73582],
-  [100.53018, 13.73452],
-  [100.52922, 13.73355],
-];
-
-const STOPS = [
-  {
-    name: "SIAM",
-    subtitle: "Demo Start",
-    coordinates: [100.53488, 13.74562] as [number, number],
-  },
-  {
-    name: "CHULA",
-    subtitle: "Campus Zone",
-    coordinates: [100.53342, 13.73905] as [number, number],
-  },
-  {
-    name: "SAMYAN",
-    subtitle: "Demo End",
-    coordinates: [100.52922, 13.73355] as [number, number],
-  },
-];
+const MAP_CENTER: [number, number] = [100.53389, 13.73604];
 
 type BusLocation = {
   busId: string;
@@ -110,103 +79,6 @@ function add3DBuildings(map: MapLibreMap) {
   }
 }
 
-function addRouteLayer(map: MapLibreMap) {
-  if (map.getSource("siam-samyan-route")) return;
-
-  map.addSource("siam-samyan-route", {
-    type: "geojson",
-    data: {
-      type: "FeatureCollection",
-      features: [
-        {
-          type: "Feature",
-          properties: {},
-          geometry: {
-            type: "LineString",
-            coordinates: SIAM_SAMYAN_ROUTE,
-          },
-        },
-      ],
-    },
-  });
-
-  map.addLayer({
-    id: "route-glow-outer",
-    type: "line",
-    source: "siam-samyan-route",
-    layout: {
-      "line-cap": "round",
-      "line-join": "round",
-    },
-    paint: {
-      "line-color": "#0ea5e9",
-      "line-width": 18,
-      "line-opacity": 0.18,
-      "line-blur": 4,
-    },
-  });
-
-  map.addLayer({
-    id: "route-glow-inner",
-    type: "line",
-    source: "siam-samyan-route",
-    layout: {
-      "line-cap": "round",
-      "line-join": "round",
-    },
-    paint: {
-      "line-color": "#38bdf8",
-      "line-width": 9,
-      "line-opacity": 0.35,
-      "line-blur": 1.5,
-    },
-  });
-
-  map.addLayer({
-    id: "route-main",
-    type: "line",
-    source: "siam-samyan-route",
-    layout: {
-      "line-cap": "round",
-      "line-join": "round",
-    },
-    paint: {
-      "line-color": "#e0f2fe",
-      "line-width": 3.5,
-      "line-opacity": 0.95,
-    },
-  });
-
-  map.addLayer({
-    id: "route-dash",
-    type: "line",
-    source: "siam-samyan-route",
-    layout: {
-      "line-cap": "round",
-      "line-join": "round",
-    },
-    paint: {
-      "line-color": "#2563eb",
-      "line-width": 2,
-      "line-opacity": 0.95,
-      "line-dasharray": [0.8, 1.6],
-    },
-  });
-}
-
-function createStopMarkerElement(name: string, subtitle: string) {
-  const element = document.createElement("div");
-  element.className = "stop-marker";
-  element.innerHTML = `
-    <div class="stop-dot"></div>
-    <div class="stop-label">
-      <strong>${name}</strong>
-      <span>${subtitle}</span>
-    </div>
-  `;
-  return element;
-}
-
 function createBusMarkerElement(busId: string) {
   const element = document.createElement("div");
   element.className = "bus-marker";
@@ -274,7 +146,6 @@ export default function App() {
   const mapRef = useRef<MapLibreMap | null>(null);
   const markerRefs = useRef<Record<string, Marker>>({});
   const markerPositionRefs = useRef<Record<string, MarkerPosition>>({});
-  const stopMarkerRefs = useRef<Marker[]>([]);
 
   const [buses, setBuses] = useState<Record<string, BusLocation>>({});
   const [connected, setConnected] = useState(false);
@@ -289,7 +160,7 @@ export default function App() {
       container: mapContainerRef.current,
       style: "https://tiles.openfreemap.org/styles/liberty",
       center: MAP_CENTER,
-      zoom: 15.35,
+      zoom: 15.6,
       pitch: 68,
       bearing: -28,
     });
@@ -304,21 +175,7 @@ export default function App() {
     );
 
     map.on("load", () => {
-      addRouteLayer(map);
       add3DBuildings(map);
-
-      if (stopMarkerRefs.current.length === 0) {
-        STOPS.forEach((stop) => {
-          const marker = new maplibregl.Marker({
-            element: createStopMarkerElement(stop.name, stop.subtitle),
-            anchor: "bottom",
-          })
-            .setLngLat(stop.coordinates)
-            .addTo(map);
-
-          stopMarkerRefs.current.push(marker);
-        });
-      }
     });
 
     map.on("rotate", () => {
@@ -333,8 +190,6 @@ export default function App() {
     });
 
     return () => {
-      stopMarkerRefs.current.forEach((marker) => marker.remove());
-      stopMarkerRefs.current = [];
       map.remove();
       mapRef.current = null;
     };
@@ -450,7 +305,7 @@ export default function App() {
           <div className="brand-mark">K</div>
           <div>
             <strong>KKU POP Live</strong>
-            <span>3D Siam ↔ Samyan Route</span>
+            <span>Real-time 3D bus tracking</span>
           </div>
         </div>
 
@@ -463,17 +318,13 @@ export default function App() {
           <div className="status-pill">
             Active Buses: {activeBusCount}
           </div>
-
-          <div className="status-pill route-pill">
-            Route: Siam → Samyan
-          </div>
         </div>
       </div>
 
       <div className="bottom-hint">
         <span>Scroll to zoom</span>
         <span>Drag to move</span>
-        <span>Right-drag / compass to rotate 3D view</span>
+        <span>Rotate 3D view</span>
       </div>
     </main>
   );
