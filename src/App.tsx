@@ -95,16 +95,13 @@ function createBusMarkerElement(busId: string) {
   return element;
 }
 
-function rotateBusMarker(marker: Marker, heading: number | null, map: MapLibreMap) {
+function rotateBusMarker(marker: Marker, _heading: number | null, _map: MapLibreMap) {
   const element = marker.getElement();
   const vehicle = element.querySelector(".bus-vehicle") as HTMLDivElement | null;
 
   if (!vehicle) return;
 
-  const safeHeading = heading ?? 0;
-  const rotation = safeHeading - map.getBearing();
-
-  vehicle.style.transform = `perspective(650px) rotateX(12deg) rotateZ(${rotation}deg)`;
+  vehicle.style.transform = "none";
 }
 
 function animateMarkerTo(
@@ -329,3 +326,4 @@ export default function App() {
     </main>
   );
 }
+
