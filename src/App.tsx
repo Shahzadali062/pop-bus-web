@@ -17,6 +17,11 @@ type BusLocation = {
   timestamp: number;
 };
 
+type MarkerPosition = {
+  lng: number;
+  lat: number;
+};
+
 function add3DBuildings(map: MapLibreMap) {
   try {
     const style = map.getStyle();
@@ -68,22 +73,52 @@ function createBusMarkerElement(busId: string) {
   element.className = "bus-marker";
   element.innerHTML = `
     <div class="bus-pulse"></div>
-    <div class="bus-icon">🚌</div>
+    <div class="bus-icon"></div>
     <div class="bus-label">${busId}</div>
   `;
 
   return element;
 }
 
+function animateMarkerTo(
+  marker: Marker,
+  from: MarkerPosition,
+  to: MarkerPosition,
+  duration = 2800,
+  onUpdate?: (position: MarkerPosition) => void
+) {
+  const startTime = performance.now();
+
+  function animate(currentTime: number) {
+    const elapsed = currentTime - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+
+    const lng = from.lng + (to.lng - from.lng) * eased;
+    const lat = from.lat + (to.lat - from.lat) * eased;
+
+    const nextPosition = { lng, lat };
+
+    marker.setLngLat([lng, lat]);
+    onUpdate?.(nextPosition);
+
+    if (progress < 1) {
+      requestAnimationFrame(animate);
+    }
+  }
+
+  requestAnimationFrame(animate);
+}
+
 export default function App() {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markerRefs = useRef<Record<string, Marker>>({});
+  const markerPositionRefs = useRef<Record<string, MarkerPosition>>({});
 
   const [buses, setBuses] = useState<Record<string, BusLocation>>({});
 
   const busList = Object.values(buses);
-  const firstBus = busList[0] ?? null;
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
@@ -92,7 +127,7 @@ export default function App() {
       container: mapContainerRef.current,
       style: "https://tiles.openfreemap.org/styles/liberty",
       center: CHULA_CENTER,
-      zoom: 16.4,
+      zoom: 15.4,
       pitch: 68,
       bearing: -28,
     });
@@ -125,23 +160,21 @@ export default function App() {
       const locationMap: Record<string, BusLocation> = {};
 
       locations.forEach((location) => {
-        locationMap[location.busId] = location;
+        locationMap[location.busId.trim().toUpperCase()] = {
+          ...location,
+          busId: location.busId.trim().toUpperCase(),
+        };
       });
 
       setBuses(locationMap);
     });
 
-    socket.on("bus:location-updated", (location: BusLocation) => {
-      setBuses((previous) => ({
-        ...previous,
-        [location.busId]: location,
-      }));
-    });
-
     socket.on("bus:removed", ({ busId }: { busId: string }) => {
+      const cleanBusId = busId.trim().toUpperCase();
+
       setBuses((previous) => {
         const updated = { ...previous };
-        delete updated[busId];
+        delete updated[cleanBusId];
         return updated;
       });
     });
@@ -156,41 +189,44 @@ export default function App() {
     if (!map) return;
 
     busList.forEach((bus) => {
-      const coordinates: [number, number] = [bus.longitude, bus.latitude];
+      const busId = bus.busId.trim().toUpperCase();
+      const nextPosition: MarkerPosition = {
+        lng: bus.longitude,
+        lat: bus.latitude,
+      };
 
-      if (!markerRefs.current[bus.busId]) {
+      if (!markerRefs.current[busId]) {
         const marker = new maplibregl.Marker({
-          element: createBusMarkerElement(bus.busId),
+          element: createBusMarkerElement(busId),
           anchor: "center",
         })
-          .setLngLat(coordinates)
+          .setLngLat([nextPosition.lng, nextPosition.lat])
           .addTo(map);
 
-        markerRefs.current[bus.busId] = marker;
+        markerRefs.current[busId] = marker;
+        markerPositionRefs.current[busId] = nextPosition;
       } else {
-        markerRefs.current[bus.busId].setLngLat(coordinates);
+        const marker = markerRefs.current[busId];
+        const currentPosition = markerPositionRefs.current[busId] ?? nextPosition;
+
+        animateMarkerTo(marker, currentPosition, nextPosition, 2800, (position) => {
+          markerPositionRefs.current[busId] = position;
+        });
       }
     });
 
     Object.keys(markerRefs.current).forEach((busId) => {
-      const stillExists = busList.some((bus) => bus.busId === busId);
+      const stillExists = busList.some(
+        (bus) => bus.busId.trim().toUpperCase() === busId
+      );
 
       if (!stillExists) {
         markerRefs.current[busId].remove();
         delete markerRefs.current[busId];
+        delete markerPositionRefs.current[busId];
       }
     });
-
-    if (firstBus) {
-      map.easeTo({
-        center: [firstBus.longitude, firstBus.latitude],
-        zoom: 16.8,
-        pitch: 68,
-        bearing: -28,
-        duration: 900,
-      });
-    }
-  }, [busList, firstBus]);
+  }, [busList]);
 
   return (
     <main className="map-page">

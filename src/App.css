@@ -30,102 +30,6 @@ body {
 
 .bus-marker {
   position: relative;
-  width: 72px;
-  height: 72px;
-  display: grid;
-  place-items: center;
-}
-
-.bus-pulse {
-  position: absolute;
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
-  background: rgba(37, 99, 235, 0.18);
-  animation: busPulse 1.7s infinite;
-}
-
-.bus-icon {
-  position: relative;
-  z-index: 2;
-  width: 50px;
-  height: 50px;
-  display: grid;
-  place-items: center;
-  border-radius: 18px;
-  background: linear-gradient(135deg, #2563eb, #06b6d4);
-  border: 4px solid white;
-  font-size: 26px;
-  box-shadow: 0 18px 48px rgba(37, 99, 235, 0.62);
-}
-
-.bus-label {
-  position: absolute;
-  top: 61px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 7px 12px;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.92);
-  color: white;
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: 0.4px;
-  white-space: nowrap;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35);
-}
-
-@keyframes busPulse {
-  0% {
-    transform: scale(0.8);
-    opacity: 0.9;
-    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.5);
-  }
-
-  70% {
-    transform: scale(1.25);
-    opacity: 0;
-    box-shadow: 0 0 0 24px rgba(37, 99, 235, 0);
-  }
-
-  100% {
-    transform: scale(0.8);
-    opacity: 0;
-    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0);
-  }
-}
-
-.maplibregl-map {
-  font-family: Arial, sans-serif;
-}
-
-.maplibregl-canvas {
-  outline: none;
-}
-
-.maplibregl-ctrl-bottom-right {
-  z-index: 10;
-}
-
-.maplibregl-ctrl-group {
-  border-radius: 18px !important;
-  overflow: hidden;
-  background: rgba(15, 23, 42, 0.92) !important;
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.32) !important;
-}
-
-.maplibregl-ctrl button {
-  background-color: rgba(15, 23, 42, 0.92) !important;
-}
-
-.maplibregl-ctrl button span {
-  filter: invert(1);
-}
-
-/* Premium 3D-style bus marker override */
-.bus-marker {
-  position: relative;
   width: 92px;
   height: 92px;
   display: grid;
@@ -157,7 +61,6 @@ body {
     inset 0 -8px 15px rgba(2, 6, 23, 0.22),
     inset 0 8px 12px rgba(255,255,255,0.22);
   transform: perspective(600px) rotateX(12deg) rotateZ(-4deg);
-  font-size: 0;
 }
 
 .bus-icon::before {
@@ -207,4 +110,51 @@ body {
   border: 1px solid rgba(125, 211, 252, 0.42);
   box-shadow: 0 18px 45px rgba(0, 0, 0, 0.42);
   backdrop-filter: blur(12px);
+}
+
+@keyframes busPulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.9;
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.5);
+  }
+
+  70% {
+    transform: scale(1.25);
+    opacity: 0;
+    box-shadow: 0 0 0 24px rgba(37, 99, 235, 0);
+  }
+
+  100% {
+    transform: scale(0.8);
+    opacity: 0;
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0);
+  }
+}
+
+.maplibregl-map {
+  font-family: Arial, sans-serif;
+}
+
+.maplibregl-canvas {
+  outline: none;
+}
+
+.maplibregl-ctrl-bottom-right {
+  z-index: 10;
+}
+
+.maplibregl-ctrl-group {
+  border-radius: 18px !important;
+  overflow: hidden;
+  background: rgba(15, 23, 42, 0.92) !important;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.32) !important;
+}
+
+.maplibregl-ctrl button {
+  background-color: rgba(15, 23, 42, 0.92) !important;
+}
+
+.maplibregl-ctrl button span {
+  filter: invert(1);
 }
