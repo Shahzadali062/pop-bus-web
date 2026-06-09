@@ -130,13 +130,29 @@ function formatSpeed(speed: number | null) {
   return `${(speed * 3.6).toFixed(1)} km/h`;
 }
 
-function formatUpdated(timestamp: number) {
-  const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+function formatUpdated(timestamp: number | string | null | undefined, currentTime: number) {
+  let time = typeof timestamp === "number" ? timestamp : Number(timestamp);
 
+  if (!Number.isFinite(time) && typeof timestamp === "string") {
+    time = Date.parse(timestamp);
+  }
+
+  if (!Number.isFinite(time)) return "just now";
+
+  if (time < 1000000000000) {
+    time = time * 1000;
+  }
+
+  const seconds = Math.max(0, Math.floor((currentTime - time) / 1000));
+
+  if (seconds < 3) return "just now";
   if (seconds < 60) return `${seconds}s ago`;
 
   const minutes = Math.floor(seconds / 60);
-  return `${minutes}m ago`;
+  if (minutes < 60) return `${minutes}m ago`;
+
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ago`;
 }
 
 export default function App() {
@@ -147,6 +163,7 @@ export default function App() {
 
   const [buses, setBuses] = useState<Record<string, BusLocation>>({});
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [currentTime, setCurrentTime] = useState(Date.now());
 
   const busList = Object.values(buses).sort((a, b) =>
     a.busId.localeCompare(b.busId)
@@ -161,14 +178,19 @@ export default function App() {
 
     map.easeTo({
       center: [bus.longitude, bus.latitude],
-      zoom: 17,
-      pitch: 68,
-      bearing: -28,
-      duration: 1000,
+      zoom: 18.4,
+      pitch: 0,
+      bearing: 0,
+      duration: 950,
     });
 
     setDropdownOpen(false);
   }
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setCurrentTime(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
@@ -300,36 +322,56 @@ export default function App() {
           className="active-bus-pill"
           onClick={() => setDropdownOpen((previous) => !previous)}
         >
-          Active Buses: {activeBusCount}
-          <span className={dropdownOpen ? "chevron open" : "chevron"}>⌄</span>
+          <span className="bus-pill-left">
+            <span className="bus-pill-icon">🚌</span>
+            <span>
+              <span className="bus-pill-title">Active Buses</span>
+              <span className="bus-pill-subtitle">{activeBusCount} vehicles online</span>
+            </span>
+          </span>
+          <span className={dropdownOpen ? "chevron open" : "chevron"}>▾</span>
         </button>
 
-        {dropdownOpen && (
-          <div className="bus-dropdown">
-            {busList.length === 0 && (
-              <div className="empty-dropdown">No active buses</div>
-            )}
-
-            {busList.map((bus) => (
-              <button
-                key={bus.busId}
-                className="bus-dropdown-item"
-                onClick={() => focusBus(bus)}
-              >
-                <div>
-                  <strong>{bus.busId}</strong>
-                  <span>{bus.latitude.toFixed(5)}, {bus.longitude.toFixed(5)}</span>
-                </div>
-
-                <div className="bus-meta">
-                  <span>{formatSpeed(bus.speed)}</span>
-                  <span>{formatUpdated(bus.timestamp)}</span>
-                </div>
-              </button>
-            ))}
+        <div className={dropdownOpen ? "bus-dropdown open" : "bus-dropdown"}>
+          <div className="bus-dropdown-header">
+            <span>Live Fleet</span>
+            <span>{activeBusCount}</span>
           </div>
-        )}
+
+          {busList.length === 0 && (
+            <div className="empty-dropdown">
+              <span className="empty-icon">🛰️</span>
+              <span>No active buses</span>
+            </div>
+          )}
+
+          {busList.map((bus) => (
+            <button
+              key={bus.busId}
+              className="bus-dropdown-item"
+              onClick={() => focusBus(bus)}
+            >
+              <div>
+                <strong>{bus.busId}</strong>
+                <span>{bus.latitude.toFixed(5)}, {bus.longitude.toFixed(5)}</span>
+              </div>
+
+              <div className="bus-meta">
+                <span>{formatSpeed(bus.speed)}</span>
+                <span>Updated {formatUpdated(bus.timestamp, currentTime)}</span>
+              </div>
+            </button>
+          ))}
+        </div>
       </div>
     </main>
   );
 }
+
+
+
+
+
+
+
+

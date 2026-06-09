@@ -249,3 +249,233 @@ body {
     padding: 12px 14px;
   }
 }
+
+/* New animated bus dropdown */
+.active-bus-panel {
+  width: 330px;
+}
+
+.bus-pill-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bus-pill-icon {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 15px;
+  background: linear-gradient(135deg, #2563eb, #06b6d4);
+  font-size: 22px;
+}
+
+.bus-pill-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 950;
+}
+
+.bus-pill-subtitle {
+  display: block;
+  margin-top: 2px;
+  color: #bae6fd;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.bus-dropdown {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-8px) scale(0.96);
+  pointer-events: none;
+  overflow-y: auto;
+  transition: all 0.25s ease;
+}
+
+.bus-dropdown.open {
+  max-height: 360px;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.bus-dropdown::-webkit-scrollbar {
+  width: 7px;
+}
+
+.bus-dropdown::-webkit-scrollbar-thumb {
+  background: rgba(56, 189, 248, 0.55);
+  border-radius: 999px;
+}
+
+.bus-dropdown-item {
+  margin: 8px;
+  width: calc(100% - 16px);
+  border-radius: 16px;
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  background: rgba(15, 23, 42, 0.62);
+  transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+}
+
+.bus-dropdown-item:hover {
+  transform: translateX(-3px);
+  background: rgba(37, 99, 235, 0.32);
+  border-color: rgba(125, 211, 252, 0.45);
+}
+
+.bus-dropdown-item strong::before {
+  content: "🚌 ";
+}
+
+.bus-meta span:last-child {
+  color: #86efac;
+  font-weight: 900;
+}
+
+.bus-dropdown-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 16px 10px;
+  color: #f8fafc;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.bus-dropdown-header span:last-child {
+  min-width: 28px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(14, 165, 233, 0.2);
+  color: #7dd3fc;
+}
+
+.empty-dropdown {
+  min-height: 105px;
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  padding: 22px;
+  color: #cbd5e1;
+  font-size: 13px;
+  font-weight: 850;
+  text-align: center;
+}
+
+.empty-icon {
+  font-size: 26px;
+}
+
+/* Final premium dropdown polish */
+.active-bus-pill {
+  min-height: 62px;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top left, rgba(56, 189, 248, 0.28), transparent 34%),
+    linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.92));
+  border: 1px solid rgba(125, 211, 252, 0.45);
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.48),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.active-bus-pill:hover {
+  transform: translateY(-2px);
+  border-color: rgba(56, 189, 248, 0.75);
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, 0.55),
+    0 0 0 5px rgba(14, 165, 233, 0.12);
+}
+
+.bus-dropdown {
+  margin-top: 12px;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top right, rgba(14, 165, 233, 0.18), transparent 35%),
+    rgba(2, 6, 23, 0.95);
+  border: 1px solid rgba(125, 211, 252, 0.32);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.58);
+  backdrop-filter: blur(20px);
+}
+
+.bus-dropdown.open {
+  max-height: 430px;
+}
+
+.bus-dropdown-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  min-height: 68px;
+}
+
+.bus-dropdown-item strong {
+  color: #ffffff;
+  font-size: 14px;
+  letter-spacing: 0.2px;
+}
+
+.bus-dropdown-item div:first-child span {
+  color: #93c5fd;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bus-meta {
+  min-width: 95px;
+}
+
+.bus-meta span:first-child {
+  color: #e0f2fe;
+  font-weight: 900;
+}
+
+.bus-meta span:last-child {
+  margin-top: 5px;
+  color: #86efac;
+  font-size: 10.5px;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .active-bus-panel {
+    width: min(330px, calc(100vw - 28px));
+  }
+
+  .bus-dropdown.open {
+    max-height: 380px;
+  }
+
+  .bus-dropdown-item {
+    grid-template-columns: 1fr;
+  }
+
+  .bus-meta {
+    text-align: left;
+    display: flex;
+    gap: 10px;
+    min-width: 0;
+  }
+}
+
+/* Fix dropdown arrow icon */
+.chevron {
+  font-family: Arial, sans-serif;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.chevron.open {
+  transform: rotate(180deg);
+}
