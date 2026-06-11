@@ -14,7 +14,6 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import "./App.css";
 
 const SERVER_URL = "https://pop-bus-server.onrender.com";
-const AI_SERVER_URL = "https://pop-bus-server.onrender.com";
 const MAP_CENTER: [number, number] = [100.53389, 13.73604];
 
 type BusLocation = {
@@ -177,6 +176,7 @@ export default function App() {
   const mapRef = useRef<MapLibreMap | null>(null);
   const markerRefs = useRef<Record<string, Marker>>({});
   const markerPositionRefs = useRef<Record<string, MarkerPosition>>({});
+  const socketRef = useRef<ReturnType<typeof io> | null>(null);
 
   const [buses, setBuses] = useState<Record<string, BusLocation>>({});
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -235,87 +235,216 @@ export default function App() {
     setAiLoading(true);
 
     try {
-      const statusResponse = await fetch(
-        `${AI_SERVER_URL}/api/ai/status`
-      );
+      const socket = socketRef.current;
 
-      const statusData = await statusResponse.json();
-
-      if (
-        !statusResponse.ok ||
-        !statusData.worker?.online
-      ) {
+      if (!socket) {
         throw new Error(
-          "AI Fleet Copilot is currently offline. Please start the local AI worker."
+          "The live AI connection is not ready."
         );
       }
 
-      const createResponse = await fetch(
-        `${AI_SERVER_URL}/api/ai/jobs`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            message: question,
-            history,
-          }),
-        }
-      );
+      if (!socket.connected) {
+        socket.connect();
 
-      const createData = await createResponse.json();
+        await new Promise<void>((resolve, reject) => {
+          const timeout = window.setTimeout(() => {
+            cleanup();
+            reject(
+              new Error(
+                "Could not connect to the AI server."
+              )
+            );
+          }, 15000);
 
-      if (!createResponse.ok || !createData.jobId) {
-        throw new Error(
-          createData.message ||
-            "Could not create the AI request."
-        );
+          const handleConnect = () => {
+            cleanup();
+            resolve();
+          };
+
+          const handleError = () => {
+            cleanup();
+            reject(
+              new Error(
+                "Could not connect to the AI server."
+              )
+            );
+          };
+
+          const cleanup = () => {
+            window.clearTimeout(timeout);
+            socket.off("connect", handleConnect);
+            socket.off(
+              "connect_error",
+              handleError
+            );
+          };
+
+          socket.once("connect", handleConnect);
+          socket.once(
+            "connect_error",
+            handleError
+          );
+        });
       }
 
-      const jobId = String(createData.jobId);
-      const deadline = Date.now() + 120000;
+      const acknowledgement =
+        await new Promise<{
+          status?: string;
+          jobId?: string;
+          message?: string;
+        }>((resolve, reject) => {
+          const timeout = window.setTimeout(() => {
+            reject(
+              new Error(
+                "The AI server did not accept the request."
+              )
+            );
+          }, 15000);
 
-      let answer = "";
+          socket.emit(
+            "ai:submit",
+            {
+              message: question,
+              history,
+            },
+            (result: {
+              status?: string;
+              jobId?: string;
+              message?: string;
+            }) => {
+              window.clearTimeout(timeout);
 
-      while (Date.now() < deadline) {
-        await new Promise<void>((resolve) => {
-          window.setTimeout(resolve, 1500);
+              if (
+                result?.status !== "accepted" ||
+                !result.jobId
+              ) {
+                reject(
+                  new Error(
+                    result?.message ||
+                      "The AI request was rejected."
+                  )
+                );
+
+                return;
+              }
+
+              resolve(result);
+            }
+          );
         });
 
-        const jobResponse = await fetch(
-          `${AI_SERVER_URL}/api/ai/jobs/${jobId}`
-        );
+      const jobId = String(
+        acknowledgement.jobId
+      );
 
-        const jobData = await jobResponse.json();
+      const answer = await new Promise<string>(
+        (resolve, reject) => {
+          const timeout = window.setTimeout(() => {
+            cleanup();
 
-        if (!jobResponse.ok) {
-          throw new Error(
-            jobData.message ||
-              "Could not read the AI response."
+            reject(
+              new Error(
+                "The AI response took too long."
+              )
+            );
+          }, 120000);
+
+          const handleCompleted = (payload: {
+            jobId?: string;
+            answer?: string;
+          }) => {
+            if (
+              String(payload?.jobId || "") !==
+              jobId
+            ) {
+              return;
+            }
+
+            const completedAnswer = String(
+              payload.answer || ""
+            ).trim();
+
+            cleanup();
+
+            if (!completedAnswer) {
+              reject(
+                new Error(
+                  "The AI returned an empty answer."
+                )
+              );
+
+              return;
+            }
+
+            resolve(completedAnswer);
+          };
+
+          const handleFailed = (payload: {
+            jobId?: string;
+            error?: string;
+          }) => {
+            if (
+              String(payload?.jobId || "") !==
+              jobId
+            ) {
+              return;
+            }
+
+            cleanup();
+
+            reject(
+              new Error(
+                payload.error ||
+                  "The AI worker could not process the request."
+              )
+            );
+          };
+
+          const handleDisconnect = () => {
+            cleanup();
+
+            reject(
+              new Error(
+                "The live AI connection was interrupted."
+              )
+            );
+          };
+
+          const cleanup = () => {
+            window.clearTimeout(timeout);
+
+            socket.off(
+              "ai:completed",
+              handleCompleted
+            );
+
+            socket.off(
+              "ai:failed",
+              handleFailed
+            );
+
+            socket.off(
+              "disconnect",
+              handleDisconnect
+            );
+          };
+
+          socket.on(
+            "ai:completed",
+            handleCompleted
+          );
+
+          socket.on(
+            "ai:failed",
+            handleFailed
+          );
+
+          socket.once(
+            "disconnect",
+            handleDisconnect
           );
         }
-
-        const job = jobData.job;
-
-        if (job?.status === "completed") {
-          answer = String(job.answer || "").trim();
-          break;
-        }
-
-        if (job?.status === "failed") {
-          throw new Error(
-            job.error ||
-              "The AI worker could not process this request."
-          );
-        }
-      }
-
-      if (!answer) {
-        throw new Error(
-          "The AI response took too long. Please try again."
-        );
-      }
+      );
 
       const assistantId =
         `assistant-${Date.now()}`;
@@ -444,6 +573,8 @@ export default function App() {
       transports: ["websocket"],
     });
 
+    socketRef.current = socket;
+
     socket.on("server:latest-locations", (locations: BusLocation[]) => {
       const locationMap: Record<string, BusLocation> = {};
 
@@ -481,6 +612,7 @@ export default function App() {
     });
 
     return () => {
+      socketRef.current = null;
       socket.disconnect();
     };
   }, []);
