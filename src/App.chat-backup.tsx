@@ -1,13 +1,4 @@
 ﻿import { useEffect, useRef, useState } from "react";
-import {
-  Activity,
-  Bot,
-  FileText,
-  Radio,
-  Send,
-  Sparkles,
-  X,
-} from "lucide-react";
 import { io } from "socket.io-client";
 import maplibregl, { Map as MapLibreMap, Marker } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -31,13 +22,6 @@ type MarkerPosition = {
   lng: number;
   lat: number;
 };
-
-type ChatMessage = {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-};
-
 
 function add3DBuildings(map: MapLibreMap) {
   try {
@@ -182,21 +166,9 @@ export default function App() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [aiOpen, setAiOpen] = useState(false);
-  const [aiQuestion, setAiQuestion] = useState("");
+  const [aiQuestion, setAiQuestion] = useState("Which buses are active right now? Give a short analysis.");
+  const [aiAnswer, setAiAnswer] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
-  const [aiTyping, setAiTyping] = useState(false);
-
-  const [chatMessages, setChatMessages] =
-    useState<ChatMessage[]>([
-      {
-        id: "welcome",
-        role: "assistant",
-        content:
-          "Hello! I?m your AI Fleet Copilot. Ask me about live buses, locations, speed, GPS quality, tracking history or fleet performance.",
-      },
-    ]);
-
-  const chatEndRef = useRef<HTMLDivElement | null>(null);
 
   const busList = Object.values(buses).sort((a, b) =>
     a.busId.localeCompare(b.busId)
@@ -204,120 +176,23 @@ export default function App() {
 
   const activeBusCount = busList.length;
 
-  async function askAi(customQuestion?: string) {
-    const question = (customQuestion ?? aiQuestion).trim();
-
-    if (!question || aiLoading || aiTyping) return;
-
-    const userMessage: ChatMessage = {
-      id: `user-${Date.now()}`,
-      role: "user",
-      content: question,
-    };
-
-    const history = chatMessages
-      .filter(
-        (message) =>
-          message.id !== "welcome" &&
-          message.content.trim()
-      )
-      .map(({ role, content }) => ({
-        role,
-        content,
-      }));
-
-    setChatMessages((previous) => [
-      ...previous,
-      userMessage,
-    ]);
-
-    setAiQuestion("");
-    setAiLoading(true);
-
+  async function askAi() {
     try {
+      setAiLoading(true);
+      setAiAnswer("");
+
       const response = await fetch(AI_API_URL, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message: question,
-          history,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: aiQuestion }),
       });
 
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.message || "AI request failed"
-        );
-      }
-
-      const answer =
-        String(data.answer || "").trim() ||
-        "I could not generate an answer.";
-
-      const assistantId =
-        `assistant-${Date.now()}`;
-
-      setChatMessages((previous) => [
-        ...previous,
-        {
-          id: assistantId,
-          role: "assistant",
-          content: "",
-        },
-      ]);
-
+      setAiAnswer(data.answer || "No answer received.");
+    } catch {
+      setAiAnswer("AI server is not available. Please start the local backend and Ollama.");
+    } finally {
       setAiLoading(false);
-      setAiTyping(true);
-
-      let characterIndex = 0;
-
-      await new Promise<void>((resolve) => {
-        const timer = window.setInterval(() => {
-          characterIndex = Math.min(
-            characterIndex + 3,
-            answer.length
-          );
-
-          setChatMessages((previous) =>
-            previous.map((message) =>
-              message.id === assistantId
-                ? {
-                    ...message,
-                    content: answer.slice(
-                      0,
-                      characterIndex
-                    ),
-                  }
-                : message
-            )
-          );
-
-          if (characterIndex >= answer.length) {
-            window.clearInterval(timer);
-            setAiTyping(false);
-            resolve();
-          }
-        }, 16);
-      });
-    } catch (error) {
-      setAiLoading(false);
-      setAiTyping(false);
-
-      setChatMessages((previous) => [
-        ...previous,
-        {
-          id: `error-${Date.now()}`,
-          role: "assistant",
-          content:
-            error instanceof Error
-              ? error.message
-              : "AI service is unavailable.",
-        },
-      ]);
     }
   }
 
@@ -341,13 +216,6 @@ export default function App() {
     const timer = window.setInterval(() => setCurrentTime(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "end",
-    });
-  }, [chatMessages, aiLoading, aiTyping]);
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
@@ -521,159 +389,29 @@ export default function App() {
           ))}
         </div>
       </div>
-    <button
-        className="ai-floating-button"
-        onClick={() => setAiOpen(true)}
-      >
-        <span className="ai-fab-orb">
-          <Sparkles size={21} strokeWidth={2.4} />
-        </span>
-
-        <span className="ai-fab-copy">
-          <strong>AI Fleet Copilot</strong>
-          <small>Ask about your buses</small>
-        </span>
+    <button className="ai-floating-button" onClick={() => setAiOpen(true)}>
+        🤖 AI Fleet Assistant
       </button>
 
       {aiOpen && (
-        <section className="ai-chat-shell">
-          <header className="ai-chat-header">
-            <div className="ai-agent">
-              <div className="ai-avatar">
-                <Bot size={24} strokeWidth={2.2} />
-              </div>
-
-              <div>
-                <strong>Pop Bus AI</strong>
-                <span>
-                  <i />
-                  Fleet intelligence online
-                </span>
-              </div>
-            </div>
-
-            <button
-              className="ai-close-button"
-              onClick={() => setAiOpen(false)}
-              aria-label="Close assistant"
-            >
-              <X size={20} strokeWidth={2.4} />
-            </button>
-          </header>
-
-          <div className="ai-suggestions">
-            <button
-              onClick={() =>
-                void askAi(
-                  "Which buses are active and where are they right now?"
-                )
-              }
-            >
-              <Radio size={14} />
-              <span>Live fleet</span>
-            </button>
-
-            <button
-              onClick={() =>
-                void askAi(
-                  "Analyze the GPS quality of all active buses."
-                )
-              }
-            >
-              <Activity size={14} />
-              <span>GPS health</span>
-            </button>
-
-            <button
-              onClick={() =>
-                void askAi(
-                  "Give me a detailed fleet status report."
-                )
-              }
-            >
-              <FileText size={14} />
-              <span>Fleet report</span>
-            </button>
+        <div className="ai-panel">
+          <div className="ai-panel-header">
+            <strong>AI Fleet Assistant</strong>
+            <button onClick={() => setAiOpen(false)}>×</button>
           </div>
 
-          <div className="ai-message-list">
-            {chatMessages.map((message) => (
-              <div
-                key={message.id}
-                className={`ai-message-row ${message.role}`}
-              >
-                {message.role === "assistant" && (
-                  <div className="ai-message-avatar">
-                    <Bot size={16} strokeWidth={2.3} />
-                  </div>
-                )}
+          <textarea
+            value={aiQuestion}
+            onChange={(event) => setAiQuestion(event.target.value)}
+            placeholder="Ask about active buses..."
+          />
 
-                <div className="ai-message-bubble">
-                  {message.content}
+          <button className="ai-send-button" onClick={askAi} disabled={aiLoading}>
+            {aiLoading ? "Thinking..." : "Ask AI"}
+          </button>
 
-                  {message.role === "assistant" &&
-                    aiTyping &&
-                    message.id ===
-                      chatMessages[
-                        chatMessages.length - 1
-                      ]?.id && (
-                      <span className="ai-cursor" />
-                    )}
-                </div>
-              </div>
-            ))}
-
-            {aiLoading && (
-              <div className="ai-message-row assistant">
-                <div className="ai-message-avatar">
-                    <Bot size={16} strokeWidth={2.3} />
-                  </div>
-
-                <div className="ai-message-bubble ai-thinking">
-                  <span />
-                  <span />
-                  <span />
-                  <em>Analyzing fleet data</em>
-                </div>
-              </div>
-            )}
-
-            <div ref={chatEndRef} />
-          </div>
-
-          <footer className="ai-composer">
-            <textarea
-              value={aiQuestion}
-              onChange={(event) =>
-                setAiQuestion(event.target.value)
-              }
-              onKeyDown={(event) => {
-                if (
-                  event.key === "Enter" &&
-                  !event.shiftKey
-                ) {
-                  event.preventDefault();
-                  void askAi();
-                }
-              }}
-              placeholder="Ask anything about your fleet..."
-              rows={1}
-            />
-
-            <button
-              className="ai-send-button"
-              onClick={() => void askAi()}
-              disabled={
-                !aiQuestion.trim() ||
-                aiLoading ||
-                aiTyping
-              }
-              aria-label="Send message"
-            >
-              <Send size={19} strokeWidth={2.4} />
-            </button>
-          </footer>
-        </section>
+          {aiAnswer && <div className="ai-answer">{aiAnswer}</div>}
+        </div>
       )}
     </main>
   );
