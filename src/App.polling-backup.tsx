@@ -14,7 +14,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import "./App.css";
 
 const SERVER_URL = "https://pop-bus-server.onrender.com";
-const AI_SERVER_URL = "https://pop-bus-server.onrender.com";
+const AI_API_URL = "https://pop-bus-server.onrender.com/api/ai/chat";
 const MAP_CENTER: [number, number] = [100.53389, 13.73604];
 
 type BusLocation = {
@@ -235,87 +235,28 @@ export default function App() {
     setAiLoading(true);
 
     try {
-      const statusResponse = await fetch(
-        `${AI_SERVER_URL}/api/ai/status`
-      );
+      const response = await fetch(AI_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: question,
+          history,
+        }),
+      });
 
-      const statusData = await statusResponse.json();
+      const data = await response.json();
 
-      if (
-        !statusResponse.ok ||
-        !statusData.worker?.online
-      ) {
+      if (!response.ok) {
         throw new Error(
-          "AI Fleet Copilot is currently offline. Please start the local AI worker."
+          data.message || "AI request failed"
         );
       }
 
-      const createResponse = await fetch(
-        `${AI_SERVER_URL}/api/ai/jobs`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            message: question,
-            history,
-          }),
-        }
-      );
-
-      const createData = await createResponse.json();
-
-      if (!createResponse.ok || !createData.jobId) {
-        throw new Error(
-          createData.message ||
-            "Could not create the AI request."
-        );
-      }
-
-      const jobId = String(createData.jobId);
-      const deadline = Date.now() + 120000;
-
-      let answer = "";
-
-      while (Date.now() < deadline) {
-        await new Promise<void>((resolve) => {
-          window.setTimeout(resolve, 1500);
-        });
-
-        const jobResponse = await fetch(
-          `${AI_SERVER_URL}/api/ai/jobs/${jobId}`
-        );
-
-        const jobData = await jobResponse.json();
-
-        if (!jobResponse.ok) {
-          throw new Error(
-            jobData.message ||
-              "Could not read the AI response."
-          );
-        }
-
-        const job = jobData.job;
-
-        if (job?.status === "completed") {
-          answer = String(job.answer || "").trim();
-          break;
-        }
-
-        if (job?.status === "failed") {
-          throw new Error(
-            job.error ||
-              "The AI worker could not process this request."
-          );
-        }
-      }
-
-      if (!answer) {
-        throw new Error(
-          "The AI response took too long. Please try again."
-        );
-      }
+      const answer =
+        String(data.answer || "").trim() ||
+        "I could not generate an answer.";
 
       const assistantId =
         `assistant-${Date.now()}`;
@@ -335,7 +276,7 @@ export default function App() {
       let characterIndex = 0;
 
       await new Promise<void>((resolve) => {
-        const typingTimer = window.setInterval(() => {
+        const timer = window.setInterval(() => {
           characterIndex = Math.min(
             characterIndex + 3,
             answer.length
@@ -356,7 +297,7 @@ export default function App() {
           );
 
           if (characterIndex >= answer.length) {
-            window.clearInterval(typingTimer);
+            window.clearInterval(timer);
             setAiTyping(false);
             resolve();
           }
@@ -374,7 +315,7 @@ export default function App() {
           content:
             error instanceof Error
               ? error.message
-              : "The AI service is unavailable.",
+              : "AI service is unavailable.",
         },
       ]);
     }
