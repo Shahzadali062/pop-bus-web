@@ -1250,7 +1250,7 @@ export default function LiveMapPage() {
                   void askAi();
                 }
               }}
-              placeholder="Ask about student location, GPS quality, or tracking history..."
+              placeholder="Ask about student tracking..."
               rows={1}
             />
 
@@ -1272,6 +1272,7 @@ export default function LiveMapPage() {
     </main>
   );
 }
+
 
 
 

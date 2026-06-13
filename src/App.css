@@ -2197,3 +2197,36 @@ body {
   will-change: transform;
 }
 
+/* Cleaner AI chat input */
+.ai-composer {
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+.ai-composer textarea {
+  min-height: 42px !important;
+  max-height: 72px !important;
+  height: 42px !important;
+  resize: none !important;
+  overflow: hidden !important;
+  line-height: 1.35 !important;
+  padding: 12px 13px !important;
+  scrollbar-width: none !important;
+}
+
+.ai-composer textarea::-webkit-scrollbar {
+  display: none !important;
+}
+
+.ai-composer textarea::placeholder {
+  opacity: 0.72 !important;
+}
+
+.ai-send-button {
+  width: 44px !important;
+  height: 44px !important;
+  min-width: 44px !important;
+  display: grid !important;
+  place-items: center !important;
+}
+
