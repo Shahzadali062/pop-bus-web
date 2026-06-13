@@ -23,7 +23,7 @@ export default function HomePage() {
           boxShadow: "0 30px 90px rgba(0,0,0,0.5)",
         }}
       >
-        <h1 style={{ marginTop: 0 }}>Pop Bus</h1>
+        <h1 style={{ marginTop: 0 }}>Welcome to Tracking System</h1>
 
         <p style={{ color: "#cbd5e1", lineHeight: 1.6 }}>
           Choose whether you want to share a bus location
@@ -49,7 +49,7 @@ export default function HomePage() {
               textDecoration: "none",
             }}
           >
-            Share Bus Location
+            Share Your Live Location
           </Link>
 
           <Link
@@ -65,10 +65,11 @@ export default function HomePage() {
               textDecoration: "none",
             }}
           >
-            View Live Buses
+            View Online Students
           </Link>
         </div>
       </section>
     </main>
   );
 }
+
