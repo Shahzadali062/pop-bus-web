@@ -1617,9 +1617,7 @@ body {
 }
 
 /* Hide camera debug panel after final camera setup */
-.map-camera-debug-panel {
-  display: none !important;
-}
+
 
 /* ===== REAL GLB HUMAN CHARACTER MARKER ===== */
 
@@ -2076,5 +2074,39 @@ body {
 .fleet-camera-controls,
 .bus-camera-controls,
 .map-camera-controls {
+  display: none !important;
+}
+
+/* Camera debugger visible */
+.map-camera-debug-panel {
+  display: block !important;
+  position: fixed !important;
+  left: 24px !important;
+  top: 90px !important;
+  z-index: 99999 !important;
+  width: 260px !important;
+  padding: 12px 14px !important;
+  border-radius: 14px !important;
+  background: rgba(5, 12, 30, 0.92) !important;
+  border: 1px solid rgba(125, 211, 252, 0.45) !important;
+  color: #ffffff !important;
+  font-size: 12px !important;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.35) !important;
+}
+
+.map-camera-debug-panel button {
+  margin-top: 8px !important;
+  width: 100% !important;
+  padding: 7px 10px !important;
+  border-radius: 10px !important;
+  border: 0 !important;
+  background: #0ea5e9 !important;
+  color: white !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+}
+
+/* Hide camera debugger for production */
+.map-camera-debug-panel {
   display: none !important;
 }

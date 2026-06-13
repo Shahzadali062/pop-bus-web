@@ -14,18 +14,24 @@ import maplibregl, { Map as MapLibreMap, Marker } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "../../../App.css";
 
-const MAP_CENTER: [number, number] = [100.53389, 13.73604];
+const MAP_CENTER: [number, number] = [100.5018, 13.7563];
 
 const LIVE_CAMERA: {
   zoom: number;
   pitch: number;
   bearing: number;
 } = {
-  zoom: 20.6,
-  pitch: 62,
-  bearing: -78.69,
+  zoom: 19.255,
+  pitch: 0,
+  bearing: -80,
 };
 
+const BANGKOK_OVERVIEW_CAMERA = {
+  center: MAP_CENTER,
+  zoom: 10.4,
+  pitch: 0,
+  bearing: -80,
+} as const;
 type CameraMode = "back" | "front" | "top" | "free";
 
 const CAMERA_PRESETS: Record<
@@ -348,7 +354,13 @@ export default function LiveMapPage() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [cameraMode, setCameraMode] = useState<CameraMode>("back");
   const [currentTime, setCurrentTime] = useState(Date.now());
-  const [cameraDebug, setCameraDebug] = useState({
+  const [cameraDebug, setCameraDebug] = useState<{
+    lng: number;
+    lat: number;
+    zoom: number;
+    pitch: number;
+    bearing: number;
+  }>({
     lng: 0,
     lat: 0,
     zoom: LIVE_CAMERA.zoom,
@@ -717,10 +729,10 @@ export default function LiveMapPage() {
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
       style: "https://tiles.openfreemap.org/styles/liberty",
-      center: MAP_CENTER,
-      zoom: LIVE_CAMERA.zoom,
-      pitch: LIVE_CAMERA.pitch,
-      bearing: LIVE_CAMERA.bearing,
+      center: BANGKOK_OVERVIEW_CAMERA.center,
+      zoom: BANGKOK_OVERVIEW_CAMERA.zoom,
+      pitch: BANGKOK_OVERVIEW_CAMERA.pitch,
+      bearing: BANGKOK_OVERVIEW_CAMERA.bearing,
     });
 
     mapRef.current = map;
@@ -910,29 +922,29 @@ export default function LiveMapPage() {
       }
     });
   }, [busList]);
-  // CAMERA_MODE_FOLLOW_CHARACTER
+  // AUTO_CENTER_ON_FIRST_ACTIVE_LOCATION
   useEffect(() => {
     const map = mapRef.current;
-    const firstLiveBus = Object.values(buses)[0];
+
+    const firstLiveBus = Object.values(buses).find((bus) =>
+      Number.isFinite(bus.longitude) &&
+      Number.isFinite(bus.latitude)
+    );
 
     if (!map || !firstLiveBus || cameraMode === "free") {
       return;
     }
 
-    const camera = CAMERA_PRESETS[cameraMode];
-
     map.easeTo({
-      center: [
-        firstLiveBus.longitude,
-        firstLiveBus.latitude,
-      ],
-      zoom: camera.zoom,
-      pitch: camera.pitch,
-      bearing: camera.bearing,
-      duration: 650,
+      center: [firstLiveBus.longitude, firstLiveBus.latitude],
+      zoom: LIVE_CAMERA.zoom,
+      pitch: LIVE_CAMERA.pitch,
+      bearing: LIVE_CAMERA.bearing,
+      duration: 900,
       essential: true,
     });
   }, [buses, cameraMode]);
+
   // GLB_MODEL_VIEW_SYNC
   useEffect(() => {
     const map = mapRef.current;
