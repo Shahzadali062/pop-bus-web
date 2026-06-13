@@ -1,4 +1,4 @@
-import { SERVER_URL } from "../../../shared/config/server";
+﻿import { SERVER_URL } from "../../../shared/config/server";
 import { useEffect, useRef, useState } from "react";
 import {
   Activity,
@@ -265,7 +265,7 @@ function animateMarkerTo(
 
   const distance = distanceMeters(from, to);
 
-  if (distance < 3) {
+  if (distance < 0.15) {
     setRunning(false);
     marker.setLngLat([to.lng, to.lat]);
     onUpdate?.(to);
@@ -1071,7 +1071,7 @@ export default function LiveMapPage() {
 
           {busList.length === 0 && (
             <div className="empty-dropdown">
-              <span className="empty-icon">Ã°Å¸â€ºÂ°Ã¯Â¸Â</span>
+              <span className="empty-icon">ÃƒÂ°Ã…Â¸Ã¢â‚¬ÂºÃ‚Â°ÃƒÂ¯Ã‚Â¸Ã‚Â</span>
               <span>No active students</span>
             </div>
           )}
@@ -1083,7 +1083,7 @@ export default function LiveMapPage() {
               onClick={() => focusBus(bus)}
             >
               <div>
-                <strong>{bus.busId}</strong>
+                <strong><span className="student-dropdown-icon" aria-hidden="true" />{bus.busId}</strong>
                 <span>{bus.latitude.toFixed(5)}, {bus.longitude.toFixed(5)}</span>
               </div>
 
@@ -1251,6 +1251,7 @@ export default function LiveMapPage() {
     </main>
   );
 }
+
 
 
 
