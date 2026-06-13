@@ -360,7 +360,7 @@ export default function LiveMapPage() {
         id: "welcome",
         role: "assistant",
         content:
-          "Hello! I?m your AI Students Copilot. Ask me about live buses, locations, speed, GPS quality, tracking history or student tracking performance.",
+          "Hello! I am your Student Tracking Assistant. Ask me about online students, live locations, GPS quality, tracking history, and student movement.",
       },
     ]);
 
@@ -1124,8 +1124,8 @@ export default function LiveMapPage() {
         </span>
 
         <span className="ai-fab-copy">
-          <strong>AI Students Copilot</strong>
-          <small>Ask about students</small>
+          <strong>Student Tracking Assistant</strong>
+          <small>Ask about online students</small>
         </span>
       </button>
 
@@ -1138,10 +1138,10 @@ export default function LiveMapPage() {
               </div>
 
               <div>
-                <strong>Student Tracking AI</strong>
+                <strong>Student Tracking Assistant</strong>
                 <span>
                   <i />
-                  Students intelligence online
+                  Student tracking intelligence online
                 </span>
               </div>
             </div>
@@ -1159,7 +1159,7 @@ export default function LiveMapPage() {
             <button
               onClick={() =>
                 void askAi(
-                  "Which students are active and where are they right now?"
+                  "Which students are online and where are they right now?"
                 )
               }
             >
@@ -1170,7 +1170,7 @@ export default function LiveMapPage() {
             <button
               onClick={() =>
                 void askAi(
-                  "Analyze the GPS quality of all active students."
+                  "Analyze the GPS quality of online students."
                 )
               }
             >
@@ -1186,7 +1186,7 @@ export default function LiveMapPage() {
               }
             >
               <FileText size={14} />
-              <span>Students report</span>
+              <span>Tracking report</span>
             </button>
           </div>
 
@@ -1250,7 +1250,7 @@ export default function LiveMapPage() {
                   void askAi();
                 }
               }}
-              placeholder="Ask anything about your student tracking..."
+              placeholder="Ask about student location, GPS quality, or tracking history..."
               rows={1}
             />
 
@@ -1272,6 +1272,7 @@ export default function LiveMapPage() {
     </main>
   );
 }
+
 
 
 
