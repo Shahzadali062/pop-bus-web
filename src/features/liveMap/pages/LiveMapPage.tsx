@@ -1,4 +1,4 @@
-﻿import { SERVER_URL } from "../../../shared/config/server";
+import { SERVER_URL } from "../../../shared/config/server";
 import { useEffect, useRef, useState } from "react";
 import {
   Activity,
@@ -206,7 +206,7 @@ function createBusMarkerElement(bus: any) {
 
   const avatar = document.createElement("div");
   avatar.className = "student-live-marker-avatar";
-  avatar.textContent = "ðŸ§‘â€ðŸŽ“";
+  avatar.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12c2.2 0 4-1.8 4-4s-1.8-4-4-4-4 1.2.2 0 4-1.8 4-4s-1.8-4-4-4-4 1.8-4 4 1.8 4 4 4Zm0 2c-3.3 0-6 2.1-6 4.7 0 .7.5 1.3 1.2 1.3h9.6c.7 0 1.2-.6 1.2-1.3C18 16.1 15.3 14 12 14Z" fill="white"/></svg>';
 
   const label = document.createElement("div");
   label.className = "student-live-marker-label";
@@ -1027,7 +1027,7 @@ export default function LiveMapPage() {
           onClick={() => setDropdownOpen((previous) => !previous)}
         >
           <span className="bus-pill-left">
-            <span className="bus-pill-icon">STUDENT</span>
+            <span className="bus-pill-icon" aria-label="Students"></span>
             <span>
               <span className="bus-pill-title">Active Students</span>
               <span className="bus-pill-subtitle">{activeBusCount} students online</span>
