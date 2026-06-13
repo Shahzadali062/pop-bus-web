@@ -26,8 +26,7 @@ export default function HomePage() {
         <h1 style={{ marginTop: 0 }}>Welcome to Tracking System</h1>
 
         <p style={{ color: "#cbd5e1", lineHeight: 1.6 }}>
-          Choose whether you want to share a bus location
-          or view all currently active buses.
+          Share your live location or view online students in real time.
         </p>
 
         <div
@@ -72,4 +71,5 @@ export default function HomePage() {
     </main>
   );
 }
+
 
