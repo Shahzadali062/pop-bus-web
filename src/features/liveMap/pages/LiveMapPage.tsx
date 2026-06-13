@@ -874,6 +874,21 @@ export default function LiveMapPage() {
     const map = mapRef.current;
     if (!map) return;
 
+    const liveStudentIds = new Set(
+      busList.map((bus) => bus.busId.trim().toUpperCase())
+    );
+
+    Object.keys(markerRefs.current).forEach((studentId) => {
+      if (!liveStudentIds.has(studentId)) {
+        markerAnimationRefs.current[studentId]?.();
+        markerRefs.current[studentId]?.remove();
+
+        delete markerRefs.current[studentId];
+        delete markerPositionRefs.current[studentId];
+        delete markerAnimationRefs.current[studentId];
+      }
+    });
+
     busList.forEach((bus) => {
       const busId = bus.busId.trim().toUpperCase();
       const nextPosition: MarkerPosition = {
@@ -1272,6 +1287,7 @@ export default function LiveMapPage() {
     </main>
   );
 }
+
 
 
 
