@@ -313,10 +313,6 @@ function animateMarkerTo(
   };
 }
 
-function formatSpeed(speed: number | null) {
-  if (speed === null) return "N/A";
-  return `${(speed * 3.6).toFixed(1)} km/h`;
-}
 
 function formatUpdated(timestamp: number | string | null | undefined, currentTime: number) {
   let time = typeof timestamp === "number" ? timestamp : Number(timestamp);
@@ -378,7 +374,7 @@ export default function LiveMapPage() {
         id: "welcome",
         role: "assistant",
         content:
-          "Hello! I?m your AI Fleet Copilot. Ask me about live buses, locations, speed, GPS quality, tracking history or fleet performance.",
+          "Hello! I?m your AI Students Copilot. Ask me about live buses, locations, speed, GPS quality, tracking history or student tracking performance.",
       },
     ]);
 
@@ -1031,9 +1027,9 @@ export default function LiveMapPage() {
           onClick={() => setDropdownOpen((previous) => !previous)}
         >
           <span className="bus-pill-left">
-            <span className="bus-pill-icon">BUS</span>
+            <span className="bus-pill-icon">STUDENT</span>
             <span>
-              <span className="bus-pill-title">Active Buses</span>
+              <span className="bus-pill-title">Active Students</span>
               <span className="bus-pill-subtitle">{activeBusCount} vehicles online</span>
             </span>
           </span>
@@ -1042,7 +1038,7 @@ export default function LiveMapPage() {
 
         <div className={dropdownOpen ? "bus-dropdown open" : "bus-dropdown"}>
           <div className="bus-dropdown-header">
-            <span>Live Fleet</span>
+            <span>Live Students</span>
             <span>{activeBusCount}</span>
           </div>
 
@@ -1076,7 +1072,7 @@ export default function LiveMapPage() {
           {busList.length === 0 && (
             <div className="empty-dropdown">
               <span className="empty-icon">ðŸ›°ï¸</span>
-              <span>No active buses</span>
+              <span>No active students</span>
             </div>
           )}
 
@@ -1092,7 +1088,6 @@ export default function LiveMapPage() {
               </div>
 
               <div className="bus-meta">
-                <span>{formatSpeed(bus.speed)}</span>
                 <span>Updated {formatUpdated(bus.timestamp, currentTime)}</span>
               </div>
             </button>
@@ -1108,7 +1103,7 @@ export default function LiveMapPage() {
         </span>
 
         <span className="ai-fab-copy">
-          <strong>AI Fleet Copilot</strong>
+          <strong>AI Students Copilot</strong>
           <small>Ask about your buses</small>
         </span>
       </button>
@@ -1122,10 +1117,10 @@ export default function LiveMapPage() {
               </div>
 
               <div>
-                <strong>Pop Bus AI</strong>
+                <strong>Student Tracking AI</strong>
                 <span>
                   <i />
-                  Fleet intelligence online
+                  Students intelligence online
                 </span>
               </div>
             </div>
@@ -1143,18 +1138,18 @@ export default function LiveMapPage() {
             <button
               onClick={() =>
                 void askAi(
-                  "Which buses are active and where are they right now?"
+                  "Which students are active and where are they right now?"
                 )
               }
             >
               <Radio size={14} />
-              <span>Live fleet</span>
+              <span>Live student tracking</span>
             </button>
 
             <button
               onClick={() =>
                 void askAi(
-                  "Analyze the GPS quality of all active buses."
+                  "Analyze the GPS quality of all active students."
                 )
               }
             >
@@ -1165,12 +1160,12 @@ export default function LiveMapPage() {
             <button
               onClick={() =>
                 void askAi(
-                  "Give me a detailed fleet status report."
+                  "Give me a detailed student tracking status report."
                 )
               }
             >
               <FileText size={14} />
-              <span>Fleet report</span>
+              <span>Students report</span>
             </button>
           </div>
 
@@ -1211,7 +1206,7 @@ export default function LiveMapPage() {
                   <span />
                   <span />
                   <span />
-                  <em>Analyzing fleet data</em>
+                  <em>Analyzing student tracking data</em>
                 </div>
               </div>
             )}
@@ -1234,7 +1229,7 @@ export default function LiveMapPage() {
                   void askAi();
                 }
               }}
-              placeholder="Ask anything about your fleet..."
+              placeholder="Ask anything about your student tracking..."
               rows={1}
             />
 

@@ -1,4 +1,4 @@
-﻿import {
+import {
   Activity,
   Bus,
   Eye,
@@ -86,7 +86,7 @@ export default function DriverTrackingPage() {
   function handleStart() {
     if (!/^[A-Z0-9-]{1,12}$/.test(busId)) {
       setValidationError(
-        "Enter a valid bus ID using letters, numbers or hyphens."
+        "Enter a valid student name / ID using letters, numbers or hyphens."
       );
       return;
     }
@@ -111,7 +111,7 @@ export default function DriverTrackingPage() {
 
           <div>
             <span className="driver-eyebrow">
-              POP BUS DRIVER
+              POP STUDENT DRIVER
             </span>
 
             <h1>Live Location Sharing</h1>
@@ -125,7 +125,7 @@ export default function DriverTrackingPage() {
 
         <div className="driver-id-card">
           <label htmlFor="bus-id">
-            Bus identification
+            Student name / IDentification
           </label>
 
           <div className="driver-input-row">
