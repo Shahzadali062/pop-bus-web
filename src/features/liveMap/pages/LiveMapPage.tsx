@@ -349,6 +349,7 @@ export default function LiveMapPage() {
   const [buses, setBuses] = useState<Record<string, BusLocation>>({});
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [cameraMode, setCameraMode] = useState<CameraMode>("back");
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [cameraDebug, setCameraDebug] = useState<{
     lng: number;
@@ -693,6 +694,10 @@ export default function LiveMapPage() {
 
   function focusBus(bus: BusLocation) {
     const map = mapRef.current;
+    const nextStudentId = bus.busId.trim().toUpperCase();
+
+    setSelectedStudentId(nextStudentId);
+    setCameraMode("back");
 
     if (!map) return;
 
@@ -701,7 +706,8 @@ export default function LiveMapPage() {
       zoom: LIVE_CAMERA.zoom,
       pitch: LIVE_CAMERA.pitch,
       bearing: LIVE_CAMERA.bearing,
-      duration: 950,
+      duration: 900,
+      essential: true,
     });
 
     setDropdownOpen(false);
@@ -918,28 +924,43 @@ export default function LiveMapPage() {
       }
     });
   }, [busList]);
-  // AUTO_CENTER_ON_FIRST_ACTIVE_LOCATION
+  // AUTO_FOLLOW_SELECTED_OR_FIRST_STUDENT
   useEffect(() => {
     const map = mapRef.current;
 
-    const firstLiveBus = Object.values(buses).find((bus) =>
-      Number.isFinite(bus.longitude) &&
-      Number.isFinite(bus.latitude)
-    );
-
-    if (!map || !firstLiveBus || cameraMode === "free") {
+    if (!map || cameraMode === "free") {
       return;
     }
 
+    const allStudents = Object.values(buses).filter((student) =>
+      Number.isFinite(student.longitude) &&
+      Number.isFinite(student.latitude)
+    );
+
+    if (allStudents.length === 0) {
+      return;
+    }
+
+    const selectedStudent =
+      selectedStudentId
+        ? allStudents.find(
+            (student) =>
+              student.busId.trim().toUpperCase() === selectedStudentId
+          )
+        : null;
+
+    const targetStudent = selectedStudent ?? allStudents[0];
+
     map.easeTo({
-      center: [firstLiveBus.longitude, firstLiveBus.latitude],
+      center: [targetStudent.longitude, targetStudent.latitude],
       zoom: LIVE_CAMERA.zoom,
       pitch: LIVE_CAMERA.pitch,
       bearing: LIVE_CAMERA.bearing,
       duration: 900,
       essential: true,
     });
-  }, [buses, cameraMode]);
+  }, [buses, cameraMode, selectedStudentId]);
+
 
   // GLB_MODEL_VIEW_SYNC
   useEffect(() => {
@@ -1251,6 +1272,7 @@ export default function LiveMapPage() {
     </main>
   );
 }
+
 
 
 
