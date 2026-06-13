@@ -1,4 +1,4 @@
-import { SERVER_URL } from "../../../shared/config/server";
+﻿import { SERVER_URL } from "../../../shared/config/server";
 import { useEffect, useRef, useState } from "react";
 import {
   Activity,
@@ -206,7 +206,7 @@ function createBusMarkerElement(bus: any) {
 
   const avatar = document.createElement("div");
   avatar.className = "student-live-marker-avatar";
-  avatar.textContent = "🧑‍🎓";
+  avatar.textContent = "ðŸ§‘â€ðŸŽ“";
 
   const label = document.createElement("div");
   label.className = "student-live-marker-label";
@@ -1030,7 +1030,7 @@ export default function LiveMapPage() {
             <span className="bus-pill-icon">STUDENT</span>
             <span>
               <span className="bus-pill-title">Active Students</span>
-              <span className="bus-pill-subtitle">{activeBusCount} vehicles online</span>
+              <span className="bus-pill-subtitle">{activeBusCount} students online</span>
             </span>
           </span>
           <span className={dropdownOpen ? "chevron open" : "chevron"}>v</span>
@@ -1071,7 +1071,7 @@ export default function LiveMapPage() {
 
           {busList.length === 0 && (
             <div className="empty-dropdown">
-              <span className="empty-icon">ðŸ›°ï¸</span>
+              <span className="empty-icon">Ã°Å¸â€ºÂ°Ã¯Â¸Â</span>
               <span>No active students</span>
             </div>
           )}
@@ -1104,7 +1104,7 @@ export default function LiveMapPage() {
 
         <span className="ai-fab-copy">
           <strong>AI Students Copilot</strong>
-          <small>Ask about your buses</small>
+          <small>Ask about students</small>
         </span>
       </button>
 
@@ -1251,6 +1251,8 @@ export default function LiveMapPage() {
     </main>
   );
 }
+
+
 
 
 

@@ -1,4 +1,4 @@
-import {
+﻿import {
   Activity,
   Bus,
   Eye,
@@ -114,7 +114,7 @@ export default function DriverTrackingPage() {
               POP STUDENT DRIVER
             </span>
 
-            <h1>Live Location Sharing</h1>
+            <h1>Student Location Sharing</h1>
 
             <p>
               Share this bus location with passengers
@@ -296,7 +296,7 @@ export default function DriverTrackingPage() {
             onClick={() => navigate("/map")}
           >
             <Map size={19} />
-            View Live Buses
+            View Online Students
             <Navigation size={17} />
           </button>
         </div>
@@ -310,3 +310,4 @@ export default function DriverTrackingPage() {
     </main>
   );
 }
+
