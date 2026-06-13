@@ -1622,13 +1622,6 @@ body {
 }
 
 /* ===== REAL GLB HUMAN CHARACTER MARKER ===== */
-.glb-human-marker {
-  position: relative;
-  width: 145px;
-  height: 178px;
-  pointer-events: auto;
-  user-select: none;
-}
 
 .glb-human-label {
   position: absolute;
@@ -1687,10 +1680,6 @@ body {
 }
 
 /* ===== FINAL GLB HUMAN SIZE + HEAD LABEL OVERRIDE ===== */
-.glb-human-marker {
-  width: 220px !important;
-  height: 275px !important;
-}
 
 .glb-human-model {
   width: 220px !important;
@@ -1716,10 +1705,6 @@ body {
 }
 
 /* ===== GLB CHARACTER DEBUG LIVE VALUES ===== */
-.glb-human-marker {
-  width: var(--glb-marker-width, 220px) !important;
-  height: var(--glb-marker-height, 275px) !important;
-}
 
 .glb-human-model {
   width: var(--glb-model-width, 220px) !important;
@@ -1827,10 +1812,6 @@ body {
   display: none !important;
 }
 
-.glb-human-marker {
-  width: 165px !important;
-  height: 205px !important;
-}
 
 .glb-human-model {
   width: 165px !important;
@@ -1860,12 +1841,6 @@ body {
   display: none !important;
 }
 
-.glb-human-marker {
-  width: 145px !important;
-  height: 178px !important;
-  pointer-events: auto;
-  user-select: none;
-}
 
 .glb-human-model {
   position: absolute !important;
@@ -1910,26 +1885,11 @@ body {
   filter: blur(7px) !important;
 }
 
-.glb-human-marker.is-moving .glb-human-model {
-  filter: drop-shadow(0 14px 18px rgba(14, 165, 233, 0.35));
-}
 
-.glb-human-marker.is-moving .glb-human-shadow {
-  animation: glbHumanRunShadow 0.46s linear infinite;
-}
-
-/* ===== SAFE FINAL GLB CHARACTER MARKER OVERRIDE ===== */
-#glb-character-debugger,
 .character-debug-panel {
   display: none !important;
 }
 
-.glb-human-marker {
-  width: 145px !important;
-  height: 178px !important;
-  pointer-events: auto !important;
-  user-select: none !important;
-}
 
 .glb-human-model {
   position: absolute !important;
@@ -1974,17 +1934,7 @@ body {
   filter: blur(7px) !important;
 }
 
-.glb-human-marker.is-moving .glb-human-model {
-  filter: drop-shadow(0 14px 18px rgba(14, 165, 233, 0.35)) !important;
-}
 
-.glb-human-marker.is-moving .glb-human-shadow {
-  animation: glbHumanRunShadow 0.46s linear infinite !important;
-}
-
-/* ===== CLEAN FINAL CHARACTER FIX ===== */
-#glb-character-debugger,
-.character-debug-panel,
 .glb-human-label {
   display: none !important;
 }
@@ -2000,13 +1950,6 @@ body {
   font-size: 14px !important;
 }
 
-.glb-human-marker {
-  width: 170px !important;
-  height: 250px !important;
-  pointer-events: auto !important;
-  user-select: none !important;
-  overflow: visible !important;
-}
 
 .glb-human-model {
   position: absolute !important;
@@ -2036,13 +1979,6 @@ body {
   display: none !important;
 }
 
-.glb-human-marker {
-  width: 185px !important;
-  height: 310px !important;
-  pointer-events: auto !important;
-  user-select: none !important;
-  overflow: visible !important;
-}
 
 .glb-human-model {
   position: absolute !important;
@@ -2067,34 +2003,58 @@ body {
   border-bottom: 1px solid rgba(148, 163, 184, 0.18);
 }
 
-.camera-mode-controls button {
-  border: 1px solid rgba(125, 211, 252, 0.22);
-  border-radius: 10px;
-  padding: 7px 4px;
-  background: rgba(15, 23, 42, 0.72);
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 10px;
-  font-weight: 900;
-  cursor: pointer;
+/* Simple student live marker */
+.student-live-marker {
+  width: 74px;
+  height: 74px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  user-select: none;
+  filter: drop-shadow(0 14px 18px rgba(0, 0, 0, 0.32));
 }
 
-.camera-mode-controls button.active {
-  background: linear-gradient(135deg, #0891b2, #2563eb);
-  border-color: rgba(103, 232, 249, 0.7);
+.student-live-marker-avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1d9bf0, #7c3aed);
+  border: 3px solid rgba(255, 255, 255, 0.95);
+  font-size: 25px;
+  line-height: 1;
+  box-shadow: 0 8px 22px rgba(29, 155, 240, 0.38);
+}
+
+.student-live-marker-label {
+  margin-height: 1;
+  box-shadow: 0 8px 22px rgba(29, 155, 240, 0.38);
+-top: -4px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(6, 14, 35, 0.94);
+  border: 1px solid rgba(125, 211, 252, 0.55);
   color: #ffffff;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
 }
 
-/* Character scales with map zoom */
-.glb-human-model {
-  transform:
-    translateX(-50%)
-    scale(var(--glb-zoom-scale, 1)) !important;
-  transform-origin: bottom center !important;
+.student-live-marker.is-moving .student-live-marker-avatar {
+  animation: studentMarkerWalkPulse 0.75s ease-in-out infinite;
 }
 
-.glb-human-shadow {
-  transform:
-    translateX(-50%)
-    scale(var(--glb-zoom-scale, 1)) !important;
-  transform-origin: center center !important;
+@keyframes studentMarkerWalkPulse {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+
+  50% {
+    transform: translateY(-4px) scale(1.05);
+  }
 }

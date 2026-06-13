@@ -12,7 +12,6 @@ import {
 import { io } from "socket.io-client";
 import maplibregl, { Map as MapLibreMap, Marker } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import "@google/model-viewer";
 import "../../../App.css";
 
 const MAP_CENTER: [number, number] = [100.53389, 13.73604];
@@ -163,93 +162,29 @@ function add3DBuildings(map: MapLibreMap) {
   }
 }
 
-function createBusMarkerElement(busId: string) {
-  const safeBusId = String(busId).replace(
-    /[&<>"']/g,
-    (character) => {
-      if (character === "&") return "&amp;";
-      if (character === "<") return "&lt;";
-      if (character === ">") return "&gt;";
-      if (character === '"') return "&quot;";
-      if (character === "'") return "&#039;";
-      return character;
-    }
+function createBusMarkerElement(bus: any) {
+  const element = document.createElement("div");
+  element.className = "student-live-marker";
+
+  const busId = String(
+    (bus as any).id ??
+      (bus as any).busId ??
+      (bus as any).vehicleId ??
+      "BUS"
   );
 
-  const element = document.createElement("div");
-  element.className = "glb-human-marker";
-  element.dataset.busId = safeBusId;
+  const avatar = document.createElement("div");
+  avatar.className = "student-live-marker-avatar";
+  avatar.textContent = "🧑‍🎓";
 
-  element.innerHTML = `<div class="glb-human-shadow"></div>
+  const label = document.createElement("div");
+  label.className = "student-live-marker-label";
+  label.textContent = busId;
 
-    <model-viewer
-      class="glb-human-model"
-      src="/models/runner.glb"
-      camera-orbit="180deg 62deg 4.10m"
-      camera-target="0m 0.75m 0m"
-      exposure="1.05"
-      shadow-intensity="0.75"
-      interaction-prompt="none"
-      disable-zoom
-      disable-pan
-    >
-      <div class="glb-human-loading" slot="poster">
-        Loading 3D
-      </div>
-    </model-viewer>
-  `;
-
+  element.appendChild(avatar);
+  element.appendChild(label);
 
   return element;
-}
-
-function calculateBearing(
-  from: MarkerPosition,
-  to: MarkerPosition
-) {
-  const fromLat = (from.lat * Math.PI) / 180;
-  const toLat = (to.lat * Math.PI) / 180;
-  const deltaLng =
-    ((to.lng - from.lng) * Math.PI) / 180;
-
-  const y =
-    Math.sin(deltaLng) * Math.cos(toLat);
-
-  const x =
-    Math.cos(fromLat) * Math.sin(toLat) -
-    Math.sin(fromLat) *
-      Math.cos(toLat) *
-      Math.cos(deltaLng);
-
-  return (
-    ((Math.atan2(y, x) * 180) / Math.PI + 360) %
-    360
-  );
-}
-
-function distanceInMeters(
-  from: MarkerPosition,
-  to: MarkerPosition
-) {
-  const earthRadius = 6371000;
-  const fromLat = (from.lat * Math.PI) / 180;
-  const toLat = (to.lat * Math.PI) / 180;
-  const deltaLat =
-    ((to.lat - from.lat) * Math.PI) / 180;
-  const deltaLng =
-    ((to.lng - from.lng) * Math.PI) / 180;
-
-  const a =
-    Math.sin(deltaLat / 2) ** 2 +
-    Math.cos(fromLat) *
-      Math.cos(toLat) *
-      Math.sin(deltaLng / 2) ** 2;
-
-  return (
-    2 *
-    earthRadius *
-    Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-  );
 }
 
 function animateMarkerTo(
@@ -376,10 +311,6 @@ function formatUpdated(timestamp: number | string | null | undefined, currentTim
   const hours = Math.floor(minutes / 60);
   return `${hours}h ago`;
 }
-
-void calculateBearing;
-void distanceInMeters;
-
 export default function LiveMapPage() {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
