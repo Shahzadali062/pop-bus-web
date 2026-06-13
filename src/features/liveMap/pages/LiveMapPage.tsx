@@ -165,6 +165,10 @@ function add3DBuildings(map: MapLibreMap) {
 
 
 function getEnteredDisplayName(bus: any) {
+  if (typeof bus === "string" || typeof bus === "number") {
+    return String(bus).trim();
+  }
+
   const value =
     bus?.busId ??
     bus?.id ??
