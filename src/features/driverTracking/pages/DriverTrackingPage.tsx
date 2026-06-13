@@ -111,15 +111,11 @@ export default function DriverTrackingPage() {
 
           <div>
             <span className="driver-eyebrow">
-              POP STUDENT DRIVER
+              STUDENTS
             </span>
 
             <h1>Student Location Sharing</h1>
 
-            <p>
-              Share this bus location with passengers
-              in real time.
-            </p>
           </div>
         </header>
 
