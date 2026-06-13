@@ -2068,3 +2068,13 @@ body {
 .map-camera-controls {
   display: none !important;
 }
+
+/* Hide Back Front Top Free camera buttons */
+.live-fleet-camera-controls,
+.camera-mode-controls,
+.camera-mode-row,
+.fleet-camera-controls,
+.bus-camera-controls,
+.map-camera-controls {
+  display: none !important;
+}
