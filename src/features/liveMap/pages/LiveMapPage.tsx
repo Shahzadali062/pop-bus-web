@@ -226,13 +226,8 @@ function animateMarkerTo(
   onUpdate?: (position: MarkerPosition) => void
 ) {
   const markerElement = marker.getElement();
-  const modelViewer =
-    markerElement.querySelector("model-viewer") as any | null;
 
-  function distanceMeters(
-    a: MarkerPosition,
-    b: MarkerPosition
-  ) {
+  function distanceMeters(a: MarkerPosition, b: MarkerPosition) {
     const earthRadius = 6371000;
     const fromLat = (a.lat * Math.PI) / 180;
     const toLat = (b.lat * Math.PI) / 180;
@@ -252,43 +247,34 @@ function animateMarkerTo(
     );
   }
 
-  function setRunning(isRunning: boolean) {
-    if (isRunning) {
-      markerElement.classList.add("is-moving");
-      void modelViewer?.play?.();
-      return;
-    }
-
-    markerElement.classList.remove("is-moving");
-    modelViewer?.pause?.();
-  }
-
   const distance = distanceMeters(from, to);
 
-  if (distance < 0.15) {
-    setRunning(false);
+  if (distance < 0.2) {
     marker.setLngLat([to.lng, to.lat]);
     onUpdate?.(to);
-
     return () => undefined;
   }
 
-  setRunning(true);
+  const effectiveDuration = Math.max(
+    900,
+    Math.min(
+      duration,
+      duration - Math.min(distance, 40) * 65
+    )
+  );
+
+  markerElement.classList.add("is-moving");
 
   const startTime = performance.now();
   let animationFrameId = 0;
 
   function animate(currentTime: number) {
     const elapsed = currentTime - startTime;
-    const progress = Math.min(elapsed / duration, 1);
+    const progress = Math.min(elapsed / effectiveDuration, 1);
 
-    const eased =
-      progress < 0.5
-        ? 2 * progress * progress
-        : 1 - Math.pow(-2 * progress + 2, 2) / 2;
-
-    const lng = from.lng + (to.lng - from.lng) * eased;
-    const lat = from.lat + (to.lat - from.lat) * eased;
+    // Linear movement gives rider-app style constant smooth tracking.
+    const lng = from.lng + (to.lng - from.lng) * progress;
+    const lat = from.lat + (to.lat - from.lat) * progress;
 
     const nextPosition = { lng, lat };
 
@@ -302,17 +288,16 @@ function animateMarkerTo(
 
     marker.setLngLat([to.lng, to.lat]);
     onUpdate?.(to);
-    setRunning(false);
+    markerElement.classList.remove("is-moving");
   }
 
   animationFrameId = requestAnimationFrame(animate);
 
   return () => {
     cancelAnimationFrame(animationFrameId);
-    setRunning(false);
+    markerElement.classList.remove("is-moving");
   };
 }
-
 
 function formatUpdated(timestamp: number | string | null | undefined, currentTime: number) {
   let time = typeof timestamp === "number" ? timestamp : Number(timestamp);
@@ -1287,6 +1272,8 @@ export default function LiveMapPage() {
     </main>
   );
 }
+
+
 
 
 

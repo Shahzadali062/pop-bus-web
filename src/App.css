@@ -2185,3 +2185,15 @@ body {
   display: none !important;
 }
 
+/* Smooth student marker movement only */
+.student-live-marker.is-moving .student-live-marker-avatar {
+  animation: none !important;
+  transform: none !important;
+}
+
+.student-live-marker,
+.student-live-marker-avatar,
+.student-live-marker-label {
+  will-change: transform;
+}
+
