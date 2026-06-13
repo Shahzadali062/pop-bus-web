@@ -162,16 +162,36 @@ function add3DBuildings(map: MapLibreMap) {
   }
 }
 
+function getStudentDisplayName(bus: any) {
+  const value =
+    bus?.studentName ??
+    bus?.student_name ??
+    bus?.student ??
+    bus?.name ??
+    bus?.driverName ??
+    bus?. bus?.studentName ??
+    bus?.student_name ??
+    bus?.student ??
+    bus?.name ??
+    bus?.driverName ??
+    bus?.driver_name ??
+    bus?.busName ??
+    bus?.bus_name ??
+    bus?.busNumber ??
+    bus?.busId ??
+    bus?.id ??
+    bus?.vehicleId ??
+    bus?.vehicle_id ??
+    "Student";
+
+  return String(value).trim() || "Student";
+}
+
 function createBusMarkerElement(bus: any) {
   const element = document.createElement("div");
   element.className = "student-live-marker";
 
-  const busId = String(
-    (bus as any).id ??
-      (bus as any).busId ??
-      (bus as any).vehicleId ??
-      "BUS"
-  );
+  const studentName = getStudentDisplayName(bus);
 
   const avatar = document.createElement("div");
   avatar.className = "student-live-marker-avatar";
@@ -179,7 +199,7 @@ function createBusMarkerElement(bus: any) {
 
   const label = document.createElement("div");
   label.className = "student-live-marker-label";
-  label.textContent = busId;
+  label.textContent = studentName;
 
   element.appendChild(avatar);
   element.appendChild(label);

@@ -2058,3 +2058,13 @@ body {
     transform: translateY(-4px) scale(1.05);
   }
 }
+
+/* Hide camera mode buttons */
+.live-fleet-camera-controls,
+.camera-mode-controls,
+.camera-mode-row,
+.fleet-camera-controls,
+.bus-camera-controls,
+.map-camera-controls {
+  display: none !important;
+}
