@@ -1,0 +1,642 @@
+﻿import {
+  useEffect,
+  useRef,
+} from "react";
+
+import {
+  connectWebDriverSocket,
+  disconnectWebDriverSocket,
+  isWebDriverSocketConnected,
+  sendWebDriverLocation,
+  stopWebDriverSocketSharing,
+  type WebDriverSocketStatus,
+} from "../services/webDriverSocket";
+import { useDriverTrackingStore } from "../store/driverTrackingStore";
+import type { WebBusLocation } from "../types/driverTracking";
+
+const SERVER_URL =
+  "https://pop-bus-server.onrender.com";
+
+const SOCKET_SEND_MIN_INTERVAL_MS = 2000;
+const HTTP_FALLBACK_INTERVAL_MS = 10000;
+
+type WakeLockHandle = {
+  released: boolean;
+  release: () => Promise<void>;
+  addEventListener: (
+    event: "release",
+    listener: () => void
+  ) => void;
+};
+
+type WakeLockNavigator = Navigator & {
+  wakeLock?: {
+    request: (
+      type: "screen"
+    ) => Promise<WakeLockHandle>;
+  };
+};
+
+async function postLocationByHttp(
+  location: WebBusLocation
+) {
+  const response = await fetch(
+    `${SERVER_URL}/api/driver/location-update`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(location),
+      keepalive: true,
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `Server returned ${response.status}`
+    );
+  }
+}
+
+async function postStopSharingByHttp(
+  busId: string
+) {
+  try {
+    await fetch(
+      `${SERVER_URL}/api/driver/stop-sharing`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ busId }),
+        keepalive: true,
+      }
+    );
+  } catch {
+    // Best-effort fallback.
+  }
+}
+
+export default function WebTrackingRuntime() {
+  const busId = useDriverTrackingStore(
+    (state) => state.busId
+  );
+
+  const isSharing = useDriverTrackingStore(
+    (state) => state.isSharing
+  );
+
+  const latestLocationRef =
+    useRef<WebBusLocation | null>(null);
+
+  const socketConnectedRef =
+    useRef(false);
+
+  const httpInFlightRef =
+    useRef(false);
+
+  const lastSocketSentAtRef =
+    useRef(0);
+
+  const lastHttpSentAtRef =
+    useRef(0);
+
+  const firstLocationSentRef =
+    useRef(false);
+
+  const wakeLockRef =
+    useRef<WakeLockHandle | null>(null);
+
+  useEffect(() => {
+    function updateVisibility() {
+      useDriverTrackingStore
+        .getState()
+        .setPageVisibility(
+          document.visibilityState
+        );
+    }
+
+    updateVisibility();
+
+    document.addEventListener(
+      "visibilitychange",
+      updateVisibility
+    );
+
+    return () => {
+      document.removeEventListener(
+        "visibilitychange",
+        updateVisibility
+      );
+    };
+  }, []);
+
+  useEffect(() => {
+    const wakeNavigator =
+      navigator as WakeLockNavigator;
+
+    const store =
+      useDriverTrackingStore.getState();
+
+    store.setWakeLockSupported(
+      Boolean(wakeNavigator.wakeLock)
+    );
+
+    let disposed = false;
+
+    async function releaseWakeLock() {
+      const current = wakeLockRef.current;
+      wakeLockRef.current = null;
+
+      if (current && !current.released) {
+        try {
+          await current.release();
+        } catch {
+          // The browser may already have released it.
+        }
+      }
+
+      store.setWakeLockActive(false);
+    }
+
+    async function requestWakeLock() {
+      if (
+        disposed ||
+        !isSharing ||
+        document.visibilityState !== "visible" ||
+        !wakeNavigator.wakeLock ||
+        wakeLockRef.current
+      ) {
+        return;
+      }
+
+      try {
+        const sentinel =
+          await wakeNavigator.wakeLock.request(
+            "screen"
+          );
+
+        if (disposed) {
+          await sentinel.release();
+          return;
+        }
+
+        wakeLockRef.current = sentinel;
+        store.setWakeLockActive(true);
+
+        sentinel.addEventListener(
+          "release",
+          () => {
+            if (
+              wakeLockRef.current === sentinel
+            ) {
+              wakeLockRef.current = null;
+            }
+
+            store.setWakeLockActive(false);
+          }
+        );
+      } catch {
+        store.setWakeLockActive(false);
+      }
+    }
+
+    function handleWakeVisibility() {
+      if (
+        document.visibilityState === "visible"
+      ) {
+        void requestWakeLock();
+      }
+    }
+
+    if (isSharing) {
+      void requestWakeLock();
+    } else {
+      void releaseWakeLock();
+    }
+
+    document.addEventListener(
+      "visibilitychange",
+      handleWakeVisibility
+    );
+
+    return () => {
+      disposed = true;
+
+      document.removeEventListener(
+        "visibilitychange",
+        handleWakeVisibility
+      );
+
+      void releaseWakeLock();
+    };
+  }, [isSharing]);
+
+  useEffect(() => {
+    if (!isSharing || !busId) {
+      disconnectWebDriverSocket();
+      return;
+    }
+
+    const store =
+      useDriverTrackingStore.getState();
+
+    if (!navigator.geolocation) {
+      store.setTrackingStatus("error");
+      store.setConnectionStatus("offline");
+      store.setError(
+        "Geolocation is not supported by this browser."
+      );
+      return;
+    }
+
+    let disposed = false;
+
+    firstLocationSentRef.current = false;
+    lastSocketSentAtRef.current = 0;
+    lastHttpSentAtRef.current = 0;
+
+    async function sendByHttp(
+      location: WebBusLocation,
+      force = false
+    ) {
+      const elapsed =
+        Date.now() -
+        lastHttpSentAtRef.current;
+
+      if (
+        disposed ||
+        httpInFlightRef.current ||
+        (!force &&
+          elapsed <
+            HTTP_FALLBACK_INTERVAL_MS)
+      ) {
+        return false;
+      }
+
+      httpInFlightRef.current = true;
+      store.setConnectionStatus("sending");
+
+      try {
+        await postLocationByHttp(location);
+
+        const sentAt = Date.now();
+
+        lastHttpSentAtRef.current = sentAt;
+
+        store.setLastSentAt(sentAt);
+        store.setConnectionStatus("online");
+        store.setTrackingStatus("sharing");
+        store.setError(null);
+
+        return true;
+      } catch (error) {
+        store.setConnectionStatus("offline");
+
+        store.setError(
+          error instanceof Error
+            ? error.message
+            : "The location could not be sent."
+        );
+
+        return false;
+      } finally {
+        httpInFlightRef.current = false;
+      }
+    }
+
+    function sendBySocket(
+      location: WebBusLocation,
+      reliable = false
+    ) {
+      const elapsed =
+        Date.now() -
+        lastSocketSentAtRef.current;
+
+      if (
+        !reliable &&
+        elapsed <
+          SOCKET_SEND_MIN_INTERVAL_MS
+      ) {
+        return false;
+      }
+
+      const sent = sendWebDriverLocation(
+        location,
+        reliable
+      );
+
+      if (!sent) {
+        return false;
+      }
+
+      const sentAt = Date.now();
+
+      lastSocketSentAtRef.current = sentAt;
+
+      store.setLastSentAt(sentAt);
+      store.setConnectionStatus("online");
+      store.setTrackingStatus("sharing");
+      store.setError(null);
+
+      return true;
+    }
+
+    function sendUsingBestTransport(
+      location: WebBusLocation,
+      force = false
+    ) {
+      const pageIsVisible =
+        document.visibilityState ===
+        "visible";
+
+      if (
+        pageIsVisible &&
+        socketConnectedRef.current
+      ) {
+        const socketSent = sendBySocket(
+          location,
+          force
+        );
+
+        if (socketSent) {
+          return;
+        }
+      }
+
+      void sendByHttp(location, force);
+    }
+
+    function handleSocketStatus(
+      status: WebDriverSocketStatus
+    ) {
+      if (disposed) return;
+
+      if (status === "connected") {
+        socketConnectedRef.current = true;
+        store.setConnectionStatus("online");
+        store.setError(null);
+
+        const latest =
+          latestLocationRef.current;
+
+        if (latest) {
+          sendBySocket(latest, true);
+        }
+
+        return;
+      }
+
+      if (status === "connecting") {
+        socketConnectedRef.current = false;
+        store.setConnectionStatus("sending");
+        return;
+      }
+
+      socketConnectedRef.current = false;
+      store.setConnectionStatus("offline");
+
+      const latest =
+        latestLocationRef.current;
+
+      if (latest) {
+        void sendByHttp(latest, true);
+      }
+    }
+
+    function connectSocketWhenVisible() {
+      if (
+        document.visibilityState !==
+        "visible"
+      ) {
+        return;
+      }
+
+      connectWebDriverSocket(
+        handleSocketStatus
+      );
+    }
+
+    function handleVisibilityChange() {
+      const latest =
+        latestLocationRef.current;
+
+      if (
+        document.visibilityState ===
+        "visible"
+      ) {
+        connectSocketWhenVisible();
+        return;
+      }
+
+      socketConnectedRef.current = false;
+      disconnectWebDriverSocket();
+
+      if (latest) {
+        void sendByHttp(latest, true);
+      }
+    }
+
+    function handlePosition(
+      position: GeolocationPosition
+    ) {
+      const speed =
+        typeof position.coords.speed ===
+          "number" &&
+        Number.isFinite(position.coords.speed)
+          ? position.coords.speed
+          : null;
+
+      const heading =
+        typeof position.coords.heading ===
+          "number" &&
+        Number.isFinite(position.coords.heading)
+          ? position.coords.heading
+          : null;
+
+      const location: WebBusLocation = {
+        busId,
+        latitude:
+          position.coords.latitude,
+        longitude:
+          position.coords.longitude,
+        accuracy:
+          Number.isFinite(
+            position.coords.accuracy
+          )
+            ? position.coords.accuracy
+            : null,
+        speed,
+        heading,
+        timestamp:
+          position.timestamp ||
+          Date.now(),
+      };
+
+      latestLocationRef.current = location;
+
+      store.setCurrentLocation(location);
+      store.setTrackingStatus("sharing");
+
+      const force =
+        !firstLocationSentRef.current;
+
+      firstLocationSentRef.current = true;
+
+      sendUsingBestTransport(
+        location,
+        force
+      );
+    }
+
+    function handlePositionError(
+      error: GeolocationPositionError
+    ) {
+      store.setTrackingStatus("error");
+      store.setConnectionStatus("offline");
+
+      if (
+        error.code ===
+        error.PERMISSION_DENIED
+      ) {
+        store.setError(
+          "Location permission was denied. Allow location access in the browser settings."
+        );
+        return;
+      }
+
+      if (
+        error.code ===
+        error.POSITION_UNAVAILABLE
+      ) {
+        store.setError(
+          "The current GPS location is unavailable."
+        );
+        return;
+      }
+
+      store.setError(
+        "The location request timed out. The browser will keep trying."
+      );
+    }
+
+    store.setTrackingStatus("starting");
+    store.setConnectionStatus("sending");
+    store.setError(null);
+
+    connectSocketWhenVisible();
+
+    document.addEventListener(
+      "visibilitychange",
+      handleVisibilityChange
+    );
+
+    const watchId =
+      navigator.geolocation.watchPosition(
+        handlePosition,
+        handlePositionError,
+        {
+          enableHighAccuracy: true,
+          maximumAge: 3000,
+          timeout: 30000,
+        }
+      );
+
+    const fallbackInterval =
+      window.setInterval(() => {
+        const latest =
+          latestLocationRef.current;
+
+        if (!latest) return;
+
+        const shouldUseHttp =
+          document.visibilityState !==
+            "visible" ||
+          !socketConnectedRef.current ||
+          !isWebDriverSocketConnected();
+
+        if (shouldUseHttp) {
+          void sendByHttp(latest);
+        }
+      }, HTTP_FALLBACK_INTERVAL_MS);
+
+    function handlePageHide() {
+      const latest =
+        latestLocationRef.current;
+
+      if (!latest) return;
+
+      void fetch(
+        `${SERVER_URL}/api/driver/location-update`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(latest),
+          keepalive: true,
+        }
+      ).catch(() => undefined);
+    }
+
+    window.addEventListener(
+      "pagehide",
+      handlePageHide
+    );
+
+    return () => {
+      disposed = true;
+
+      navigator.geolocation.clearWatch(
+        watchId
+      );
+
+      window.clearInterval(
+        fallbackInterval
+      );
+
+      document.removeEventListener(
+        "visibilitychange",
+        handleVisibilityChange
+      );
+
+      window.removeEventListener(
+        "pagehide",
+        handlePageHide
+      );
+
+      const sharingIsStillEnabled =
+        useDriverTrackingStore
+          .getState()
+          .isSharing;
+
+      const activeBusId =
+        useDriverTrackingStore
+          .getState()
+          .busId;
+
+      if (
+        !sharingIsStillEnabled ||
+        activeBusId !== busId
+      ) {
+        void stopWebDriverSocketSharing(
+          busId
+        ).finally(() => {
+          disconnectWebDriverSocket();
+        });
+
+        void postStopSharingByHttp(busId);
+      } else {
+        disconnectWebDriverSocket();
+      }
+
+      socketConnectedRef.current = false;
+      latestLocationRef.current = null;
+      firstLocationSentRef.current = false;
+    };
+  }, [busId, isSharing]);
+
+  return null;
+}

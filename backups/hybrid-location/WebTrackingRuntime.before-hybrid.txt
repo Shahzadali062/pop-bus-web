@@ -1,0 +1,405 @@
+﻿import { useEffect, useRef } from "react";
+
+import { useDriverTrackingStore } from "../store/driverTrackingStore";
+import type { WebBusLocation } from "../types/driverTracking";
+
+const SERVER_URL =
+  "https://pop-bus-server.onrender.com";
+
+const SEND_INTERVAL_MS = 5000;
+
+type WakeLockHandle = {
+  released: boolean;
+  release: () => Promise<void>;
+  addEventListener: (
+    event: "release",
+    listener: () => void
+  ) => void;
+};
+
+type WakeLockNavigator = Navigator & {
+  wakeLock?: {
+    request: (
+      type: "screen"
+    ) => Promise<WakeLockHandle>;
+  };
+};
+
+async function sendStopSharing(busId: string) {
+  try {
+    await fetch(
+      `${SERVER_URL}/api/driver/stop-sharing`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ busId }),
+        keepalive: true,
+      }
+    );
+  } catch {
+    // The browser may be closing. Best-effort request only.
+  }
+}
+
+export default function WebTrackingRuntime() {
+  const busId = useDriverTrackingStore(
+    (state) => state.busId
+  );
+
+  const isSharing = useDriverTrackingStore(
+    (state) => state.isSharing
+  );
+
+  const latestLocationRef =
+    useRef<WebBusLocation | null>(null);
+
+  const sendInFlightRef = useRef(false);
+  const firstLocationSentRef = useRef(false);
+  const wakeLockRef =
+    useRef<WakeLockHandle | null>(null);
+
+  useEffect(() => {
+    function updateVisibility() {
+      useDriverTrackingStore
+        .getState()
+        .setPageVisibility(
+          document.visibilityState
+        );
+    }
+
+    updateVisibility();
+
+    document.addEventListener(
+      "visibilitychange",
+      updateVisibility
+    );
+
+    return () => {
+      document.removeEventListener(
+        "visibilitychange",
+        updateVisibility
+      );
+    };
+  }, []);
+
+  useEffect(() => {
+    const wakeNavigator =
+      navigator as WakeLockNavigator;
+
+    const store =
+      useDriverTrackingStore.getState();
+
+    store.setWakeLockSupported(
+      Boolean(wakeNavigator.wakeLock)
+    );
+
+    let disposed = false;
+
+    async function releaseWakeLock() {
+      const current = wakeLockRef.current;
+      wakeLockRef.current = null;
+
+      if (current && !current.released) {
+        try {
+          await current.release();
+        } catch {
+          // The browser may already have released it.
+        }
+      }
+
+      store.setWakeLockActive(false);
+    }
+
+    async function requestWakeLock() {
+      if (
+        disposed ||
+        !isSharing ||
+        document.visibilityState !== "visible" ||
+        !wakeNavigator.wakeLock ||
+        wakeLockRef.current
+      ) {
+        return;
+      }
+
+      try {
+        const sentinel =
+          await wakeNavigator.wakeLock.request(
+            "screen"
+          );
+
+        if (disposed) {
+          await sentinel.release();
+          return;
+        }
+
+        wakeLockRef.current = sentinel;
+        store.setWakeLockActive(true);
+
+        sentinel.addEventListener(
+          "release",
+          () => {
+            if (
+              wakeLockRef.current === sentinel
+            ) {
+              wakeLockRef.current = null;
+            }
+
+            store.setWakeLockActive(false);
+          }
+        );
+      } catch {
+        store.setWakeLockActive(false);
+      }
+    }
+
+    function handleVisibility() {
+      if (
+        document.visibilityState === "visible"
+      ) {
+        void requestWakeLock();
+      }
+    }
+
+    if (isSharing) {
+      void requestWakeLock();
+    } else {
+      void releaseWakeLock();
+    }
+
+    document.addEventListener(
+      "visibilitychange",
+      handleVisibility
+    );
+
+    return () => {
+      disposed = true;
+
+      document.removeEventListener(
+        "visibilitychange",
+        handleVisibility
+      );
+
+      void releaseWakeLock();
+    };
+  }, [isSharing]);
+
+  useEffect(() => {
+    if (!isSharing || !busId) {
+      return;
+    }
+
+    const store =
+      useDriverTrackingStore.getState();
+
+    if (!navigator.geolocation) {
+      store.setTrackingStatus("error");
+      store.setConnectionStatus("offline");
+      store.setError(
+        "Geolocation is not supported by this browser."
+      );
+      return;
+    }
+
+    let disposed = false;
+    firstLocationSentRef.current = false;
+
+    async function sendLatestLocation() {
+      const location =
+        latestLocationRef.current;
+
+      if (
+        disposed ||
+        !location ||
+        sendInFlightRef.current
+      ) {
+        return;
+      }
+
+      sendInFlightRef.current = true;
+      store.setConnectionStatus("sending");
+
+      try {
+        const response = await fetch(
+          `${SERVER_URL}/api/driver/location-update`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(location),
+            keepalive: true,
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `Server returned ${response.status}`
+          );
+        }
+
+        const sentAt = Date.now();
+
+        store.setLastSentAt(sentAt);
+        store.setConnectionStatus("online");
+        store.setTrackingStatus("sharing");
+        store.setError(null);
+      } catch (error) {
+        store.setConnectionStatus("offline");
+
+        store.setError(
+          error instanceof Error
+            ? error.message
+            : "The location could not be sent."
+        );
+      } finally {
+        sendInFlightRef.current = false;
+      }
+    }
+
+    function handlePosition(
+      position: GeolocationPosition
+    ) {
+      const speed =
+        typeof position.coords.speed ===
+          "number" &&
+        Number.isFinite(position.coords.speed)
+          ? position.coords.speed
+          : null;
+
+      const heading =
+        typeof position.coords.heading ===
+          "number" &&
+        Number.isFinite(position.coords.heading)
+          ? position.coords.heading
+          : null;
+
+      const location: WebBusLocation = {
+        busId,
+        latitude:
+          position.coords.latitude,
+        longitude:
+          position.coords.longitude,
+        accuracy:
+          Number.isFinite(
+            position.coords.accuracy
+          )
+            ? position.coords.accuracy
+            : null,
+        speed,
+        heading,
+        timestamp:
+          position.timestamp || Date.now(),
+      };
+
+      latestLocationRef.current = location;
+
+      store.setCurrentLocation(location);
+      store.setTrackingStatus("sharing");
+      store.setError(null);
+
+      if (!firstLocationSentRef.current) {
+        firstLocationSentRef.current = true;
+        void sendLatestLocation();
+      }
+    }
+
+    function handlePositionError(
+      error: GeolocationPositionError
+    ) {
+      store.setTrackingStatus("error");
+      store.setConnectionStatus("offline");
+
+      if (
+        error.code ===
+        error.PERMISSION_DENIED
+      ) {
+        store.setError(
+          "Location permission was denied. Allow location access in the browser settings."
+        );
+        return;
+      }
+
+      if (
+        error.code ===
+        error.POSITION_UNAVAILABLE
+      ) {
+        store.setError(
+          "The current GPS location is unavailable."
+        );
+        return;
+      }
+
+      store.setError(
+        "The location request timed out. The browser will keep trying."
+      );
+    }
+
+    store.setTrackingStatus("starting");
+    store.setConnectionStatus("idle");
+    store.setError(null);
+
+    const watchId =
+      navigator.geolocation.watchPosition(
+        handlePosition,
+        handlePositionError,
+        {
+          enableHighAccuracy: true,
+          maximumAge: 3000,
+          timeout: 30000,
+        }
+      );
+
+    const sendInterval =
+      window.setInterval(() => {
+        void sendLatestLocation();
+      }, SEND_INTERVAL_MS);
+
+    function handlePageHide() {
+      const location =
+        latestLocationRef.current;
+
+      if (!location) return;
+
+      void fetch(
+        `${SERVER_URL}/api/driver/location-update`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(location),
+          keepalive: true,
+        }
+      ).catch(() => undefined);
+    }
+
+    window.addEventListener(
+      "pagehide",
+      handlePageHide
+    );
+
+    return () => {
+      disposed = true;
+
+      navigator.geolocation.clearWatch(
+        watchId
+      );
+
+      window.clearInterval(sendInterval);
+
+      window.removeEventListener(
+        "pagehide",
+        handlePageHide
+      );
+
+      latestLocationRef.current = null;
+      firstLocationSentRef.current = false;
+
+      void sendStopSharing(busId);
+    };
+  }, [busId, isSharing]);
+
+  return null;
+}
