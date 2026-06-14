@@ -14,8 +14,8 @@ import {
 import { useDriverTrackingStore } from "../store/driverTrackingStore";
 import type { WebBusLocation } from "../types/driverTracking";
 
-const LOCATION_SEND_INTERVAL_MS = 5000;
-const IMMEDIATE_SEND_MIN_GAP_MS = 2000;
+const LOCATION_SEND_INTERVAL_MS = 2000;
+const IMMEDIATE_SEND_MIN_GAP_MS = 900;
 
 type WakeLockHandle = {
   released: boolean;
@@ -448,4 +448,5 @@ export default function WebTrackingRuntime() {
 
   return null;
 }
+
 

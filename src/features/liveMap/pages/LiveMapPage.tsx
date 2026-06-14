@@ -256,10 +256,10 @@ function animateMarkerTo(
   }
 
   const effectiveDuration = Math.max(
-    900,
+    450,
     Math.min(
       duration,
-      duration - Math.min(distance, 40) * 65
+      distance > 35 ? 650 : distance > 15 ? 800 : 1050
     )
   );
 
@@ -901,7 +901,7 @@ export default function LiveMapPage() {
           marker,
           currentPosition,
           nextPosition,
-          5200,
+          1100,
           (position) => {
             markerPositionRefs.current[busId] = position;
           }
@@ -1272,6 +1272,7 @@ export default function LiveMapPage() {
     </main>
   );
 }
+
 
 
 
