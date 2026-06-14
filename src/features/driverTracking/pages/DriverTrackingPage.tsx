@@ -17,6 +17,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useDriverTrackingStore } from "../store/driverTrackingStore";
+import { stopWebDriverSocketSharing } from "../services/webDriverSocket";
 import "./DriverTrackingPage.css";
 
 function formatLastSent(
@@ -68,7 +69,8 @@ export default function DriverTrackingPage() {
       setNow(Date.now());
     }, 1000);
 
-    return () => {
+
+  return () => {
       window.clearInterval(timer);
     };
   }, []);
@@ -97,6 +99,16 @@ export default function DriverTrackingPage() {
 
   const serverOnline =
     connectionStatus === "online";
+
+  function handleStopLocationSharing() {
+    const cleanBusId = busId.trim().toUpperCase();
+
+    if (cleanBusId) {
+      void stopWebDriverSocketSharing(cleanBusId);
+    }
+
+    stopSharing();
+  }
 
   return (
     <main className="driver-page">
@@ -280,7 +292,7 @@ export default function DriverTrackingPage() {
           ) : (
             <button
               className="driver-stop-button"
-              onClick={stopSharing}
+              onClick={handleStopLocationSharing}
             >
               <Square size={18} />
               Stop Location Sharing
@@ -306,6 +318,8 @@ export default function DriverTrackingPage() {
     </main>
   );
 }
+
+
 
 
 
