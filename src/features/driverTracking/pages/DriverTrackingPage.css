@@ -314,3 +314,86 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Fix mobile sharing-state scroll issue */
+.driver-page {
+  height: auto !important;
+  min-height: 100dvh !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+.driver-page .driver-card,
+.driver-page .driver-panel,
+.driver-page .driver-tracking-card {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+@media (max-width: 768px) {
+  html,
+  body,
+  #root {
+    height: auto !important;
+    min-height: 100dvh !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+
+  .driver-page {
+    display: block !important;
+    padding: 14px 12px 110px !important;
+  }
+
+  .driver-card,
+  .driver-panel,
+  .driver-tracking-card {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 14px !important;
+    width: 100% !important;
+    min-height: auto !important;
+  }
+
+  .driver-location-card,
+  .driver-id-card {
+    flex-shrink: 0 !important;
+  }
+
+  .driver-actions {
+    position: relative !important;
+    bottom: auto !important;
+    left: auto !important;
+    right: auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    margin-top: 14px !important;
+    padding-bottom: 20px !important;
+  }
+
+  .driver-stop-button,
+  .driver-map-button,
+  .driver-primary-button {
+    width: 100% !important;
+    min-height: 52px !important;
+    justify-content: center !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .driver-page {
+    padding-bottom: 130px !important;
+  }
+
+  .driver-location-card {
+    font-size: 14px !important;
+  }
+
+  .driver-actions {
+    gap: 10px !important;
+  }
+}
+
