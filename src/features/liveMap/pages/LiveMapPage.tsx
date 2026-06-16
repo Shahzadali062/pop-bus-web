@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 ﻿import { SERVER_URL } from "../../../shared/config/server";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -324,6 +325,7 @@ function formatUpdated(timestamp: number | string | null | undefined, currentTim
   return `${hours}h ago`;
 }
 export default function LiveMapPage() {
+  const navigate = useNavigate();
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markerRefs = useRef<Record<string, Marker>>({});
@@ -1031,6 +1033,15 @@ export default function LiveMapPage() {
   }, [cameraMode]);
   return (
     <main className="map-page">
+      <button
+        type="button"
+        className="map-back-button"
+        onClick={() => navigate(-1)}
+        aria-label="Go back"
+        title="Go back"
+      >
+        <span aria-hidden="true">←</span>
+      </button>
       <div ref={mapContainerRef} className="map" />
 
       <div className="map-camera-debug-panel">

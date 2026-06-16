@@ -2325,3 +2325,59 @@ body {
   }
 }
 
+/* Map back button */
+.map-page {
+  position: relative;
+}
+
+.map-back-button {
+  position: fixed;
+  top: 18px;
+  left: 18px;
+  z-index: 60;
+  width: 46px;
+  height: 46px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.92);
+  color: #ffffff;
+  box-shadow: 0 16px 35px rgba(15, 23, 42, 0.28);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+}
+
+.map-back-button span {
+  font-size: 30px;
+  line-height: 1;
+  transform: translateY(-1px);
+}
+
+.map-back-button:hover {
+  background: rgba(30, 41, 59, 0.96);
+}
+
+@media (max-width: 768px) {
+  .map-back-button {
+    top: 12px;
+    left: 12px;
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+  }
+}
+
+.bus-empty-icon {
+  width: 42px;
+  height: 42px;
+  margin: 0 auto 8px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: rgba(56, 189, 248, 0.14);
+  color: #7dd3fc;
+  font-weight: 800;
+}
+
