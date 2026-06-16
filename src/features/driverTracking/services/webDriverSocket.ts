@@ -142,3 +142,36 @@ export function disconnectWebDriverSocket() {
   socket.disconnect();
   socket = null;
 }
+
+export async function stopWebDriverSharingEverywhere(busId: string) {
+  const cleanBusId = busId.trim().toUpperCase();
+
+  if (!cleanBusId) {
+    return false;
+  }
+
+  const socketStopPromise = stopWebDriverSocketSharing(cleanBusId).catch(
+    () => false
+  );
+
+  const httpStopPromise = fetch(`${SERVER_URL}/api/driver/stop-sharing`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      busId: cleanBusId,
+      source: "web-manual-stop",
+    }),
+    keepalive: true,
+  })
+    .then((response) => response.ok)
+    .catch(() => false);
+
+  const [socketStopped, httpStopped] = await Promise.all([
+    socketStopPromise,
+    httpStopPromise,
+  ]);
+
+  return socketStopped || httpStopped;
+}

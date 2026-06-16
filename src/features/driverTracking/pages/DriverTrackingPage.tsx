@@ -17,7 +17,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useDriverTrackingStore } from "../store/driverTrackingStore";
-import { stopWebDriverSocketSharing } from "../services/webDriverSocket";
+import { stopWebDriverSharingEverywhere } from "../services/webDriverSocket";
 import "./DriverTrackingPage.css";
 
 function formatLastSent(
@@ -104,7 +104,7 @@ export default function DriverTrackingPage() {
     const cleanBusId = busId.trim().toUpperCase();
 
     if (cleanBusId) {
-      void stopWebDriverSocketSharing(cleanBusId);
+      void stopWebDriverSharingEverywhere(cleanBusId);
     }
 
     stopSharing();
@@ -318,6 +318,7 @@ export default function DriverTrackingPage() {
     </main>
   );
 }
+
 
 
 
