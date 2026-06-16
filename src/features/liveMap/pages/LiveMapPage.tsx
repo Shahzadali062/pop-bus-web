@@ -324,6 +324,36 @@ function formatUpdated(timestamp: number | string | null | undefined, currentTim
   const hours = Math.floor(minutes / 60);
   return `${hours}h ago`;
 }
+function getOwnSharedStudentIdFromStorage() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const rawStore = window.localStorage.getItem("pop-bus-web-driver");
+
+    if (!rawStore) {
+      return null;
+    }
+
+    const parsedStore = JSON.parse(rawStore);
+    const state = parsedStore?.state ?? parsedStore;
+
+    if (!state?.isSharing) {
+      return null;
+    }
+
+    const busId =
+      typeof state?.busId === "string"
+        ? state.busId.trim().toUpperCase()
+        : "";
+
+    return busId || null;
+  } catch {
+    return null;
+  }
+}
+
 export default function LiveMapPage() {
   const navigate = useNavigate();
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -355,6 +385,8 @@ export default function LiveMapPage() {
   const [aiQuestion, setAiQuestion] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiTyping, setAiTyping] = useState(false);
+  const [ownSharedStudentId, setOwnSharedStudentId] =
+    useState<string | null>(() => getOwnSharedStudentIdFromStorage());
 
   const [chatMessages, setChatMessages] =
     useState<ChatMessage[]>([
@@ -705,6 +737,25 @@ export default function LiveMapPage() {
     return () => window.clearInterval(timer);
   }, []);
 
+
+  useEffect(() => {
+    const refreshOwnSharedStudentId = () => {
+      setOwnSharedStudentId(getOwnSharedStudentIdFromStorage());
+    };
+
+    refreshOwnSharedStudentId();
+
+    window.addEventListener("focus", refreshOwnSharedStudentId);
+    window.addEventListener("storage", refreshOwnSharedStudentId);
+    document.addEventListener("visibilitychange", refreshOwnSharedStudentId);
+
+    return () => {
+      window.removeEventListener("focus", refreshOwnSharedStudentId);
+      window.removeEventListener("storage", refreshOwnSharedStudentId);
+      document.removeEventListener("visibilitychange", refreshOwnSharedStudentId);
+    };
+  }, []);
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({
       behavior: "smooth",
@@ -926,7 +977,7 @@ export default function LiveMapPage() {
       }
     });
   }, [busList]);
-  // AUTO_FOLLOW_SELECTED_OR_FIRST_STUDENT
+  // AUTO_FOLLOW_OWN_STUDENT_OR_MANUAL_SELECTION
   useEffect(() => {
     const map = mapRef.current;
 
@@ -951,7 +1002,19 @@ export default function LiveMapPage() {
           )
         : null;
 
-    const targetStudent = selectedStudent ?? allStudents[0];
+    const ownStudent =
+      ownSharedStudentId
+        ? allStudents.find(
+            (student) =>
+              student.busId.trim().toUpperCase() === ownSharedStudentId
+          )
+        : null;
+
+    const targetStudent = selectedStudent ?? ownStudent;
+
+    if (!targetStudent) {
+      return;
+    }
 
     map.easeTo({
       center: [targetStudent.longitude, targetStudent.latitude],
@@ -961,7 +1024,7 @@ export default function LiveMapPage() {
       duration: 900,
       essential: true,
     });
-  }, [buses, cameraMode, selectedStudentId]);
+  }, [buses, cameraMode, selectedStudentId, ownSharedStudentId]);
 
 
   // GLB_MODEL_VIEW_SYNC
