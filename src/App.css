@@ -3019,3 +3019,251 @@ body {
   }
 }
 
+/* Mobile map right-corner compact dropdown final fix */
+@media (max-width: 768px) {
+  /* Back button compact left */
+  .map-back-button {
+    position: fixed !important;
+    top: calc(env(safe-area-inset-top, 0px) + 12px) !important;
+    left: 10px !important;
+    width: 38px !important;
+    height: 38px !important;
+    min-width: 38px !important;
+    min-height: 38px !important;
+    border-radius: 13px !important;
+    z-index: 140 !important;
+  }
+
+  .map-back-button span {
+    font-size: 25px !important;
+  }
+
+  /* Force active students panel to real top-right corner */
+  .active-bus-panel {
+    position: fixed !important;
+    top: calc(env(safe-area-inset-top, 0px) + 12px) !important;
+    right: 10px !important;
+    left: auto !important;
+    width: 218px !important;
+    max-width: calc(100vw - 62px) !important;
+    z-index: 135 !important;
+  }
+
+  .active-bus-pill {
+    width: 100% !important;
+    min-height: 38px !important;
+    height: 46px !important;
+    padding: 6px 9px !important;
+    border-radius: 15px !important;
+    gap: 7px !important;
+  }
+
+  .bus-pill-left {
+    gap: 7px !important;
+    min-width: 0 !important;
+  }
+
+  .bus-pill-icon {
+    width: 29px !important;
+    height: 29px !important;
+    min-width: 29px !important;
+    border-radius: 10px !important;
+  }
+
+  .bus-pill-title {
+    font-size: 12.5px !important;
+    line-height: 1.05 !important;
+    white-space: nowrap !important;
+  }
+
+  .bus-pill-subtitle {
+    font-size: 10px !important;
+    line-height: 1.05 !important;
+    white-space: nowrap !important;
+  }
+
+  .chevron {
+    font-size: 13px !important;
+    margin-left: 3px !important;
+  }
+
+  /* Opened dropdown: align with same right edge and make smaller */
+  .bus-dropdown {
+    position: absolute !important;
+    top: 52px !important;
+    right: 0 !important;
+    left: auto !important;
+    width: 218px !important;
+    max-width: 218px !important;
+    margin-top: 0 !important;
+    padding: 7px !important;
+    border-radius: 16px !important;
+  }
+
+  .bus-dropdown.open {
+    max-height: 230px !important;
+    overflow-y: auto !important;
+  }
+
+  .bus-dropdown-header {
+    padding: 7px 8px 6px !important;
+    font-size: 10px !important;
+    letter-spacing: 0.06em !important;
+  }
+
+  .bus-dropdown-header span:last-child {
+    min-width: 21px !important;
+    height: 20px !important;
+    font-size: 10px !important;
+  }
+
+  /* Hide extra camera controls inside dropdown on mobile to save space */
+  .camera-mode-controls {
+    display: none !important;
+  }
+
+  .bus-dropdown-item {
+    min-height: 46px !important;
+    margin: 5px !important;
+    width: calc(100% - 10px) !important;
+    padding: 8px 9px !important;
+    border-radius: 12px !important;
+    grid-template-columns: 1fr !important;
+  }
+
+  .bus-dropdown-item strong {
+    font-size: 12px !important;
+    line-height: 1.1 !important;
+  }
+
+  .bus-dropdown-item strong::before {
+    width: 12px !important;
+    height: 12px !important;
+    flex: 0 0 12px !important;
+  }
+
+  .bus-dropdown-item div:first-child span {
+    margin-top: 4px !important;
+    font-size: 9.5px !important;
+    line-height: 1.1 !important;
+  }
+
+  .bus-meta {
+    margin-top: 7px !important;
+    text-align: left !important;
+  }
+
+  .bus-meta span {
+    font-size: 9.5px !important;
+  }
+
+  .empty-dropdown {
+    padding: 14px 8px !important;
+  }
+
+  .empty-title {
+    font-size: 12.5px !important;
+  }
+
+  .empty-subtitle {
+    font-size: 10px !important;
+  }
+
+  /* Remove MapLibre zoom controls on mobile */
+  .maplibregl-ctrl-bottom-right,
+  .maplibregl-ctrl-group,
+  .maplibregl-ctrl-zoom-in,
+  .maplibregl-ctrl-zoom-out,
+  .maplibregl-ctrl-compass {
+    display: none !important;
+  }
+
+  /* AI icon only */
+  .ai-floating-button {
+    position: fixed !important;
+    left: 12px !important;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 14px) !important;
+    width: 52px !important;
+    height: 52px !important;
+    min-width: 52px !important;
+    min-height: 52px !important;
+    max-width: 52px !important;
+    border-radius: 17px !important;
+    padding: 0 !important;
+  }
+
+  .ai-fab-copy {
+    display: none !important;
+  }
+
+  .ai-fab-orb,
+  .ai-fab-icon {
+    width: 39px !important;
+    height: 39px !important;
+    min-width: 39px !important;
+  }
+
+  /* Chatbot open: hide top controls */
+  .map-page.ai-open .map-back-button,
+  .map-page.ai-open .active-bus-panel,
+  .map-page.ai-open .ai-floating-button {
+    display: none !important;
+  }
+
+  /* Chatbot close button responsive */
+  .map-page.ai-open .ai-chat-shell {
+    position: fixed !important;
+    top: calc(env(safe-area-inset-top, 0px) + 10px) !important;
+    left: 10px !important;
+    right: 10px !important;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 10px) !important;
+    width: auto !important;
+    height: auto !important;
+    border-radius: 22px !important;
+  }
+
+  .ai-chat-header {
+    padding: 13px !important;
+  }
+
+  .ai-close-button {
+    width: 38px !important;
+    height: 38px !important;
+    min-width: 38px !important;
+    min-height: 38px !important;
+    border-radius: 13px !important;
+    padding: 0 !important;
+  }
+
+  .ai-close-button svg {
+    width: 20px !important;
+    height: 20px !important;
+  }
+}
+
+@media (max-width: 390px) {
+  .active-bus-panel {
+    width: 205px !important;
+    max-width: calc(100vw - 58px) !important;
+  }
+
+  .bus-dropdown {
+    width: 205px !important;
+    max-width: 205px !important;
+  }
+
+  .bus-pill-title {
+    font-size: 12px !important;
+  }
+
+  .bus-pill-subtitle {
+    font-size: 9.5px !important;
+  }
+
+  .bus-pill-icon {
+    width: 27px !important;
+    height: 27px !important;
+    min-width: 27px !important;
+  }
+}
+
