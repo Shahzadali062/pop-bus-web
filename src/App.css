@@ -2566,3 +2566,204 @@ body {
   }
 }
 
+/* Final mobile map cleanup */
+@media (max-width: 768px) {
+  .map-page {
+    width: 100vw !important;
+    height: 100dvh !important;
+    overflow: hidden !important;
+  }
+
+  /* Back button stays separate */
+  .map-back-button {
+    top: calc(env(safe-area-inset-top, 0px) + 12px) !important;
+    left: 12px !important;
+    width: 50px !important;
+    height: 50px !important;
+    border-radius: 18px !important;
+    z-index: 130 !important;
+  }
+
+  /* Top active students panel: content-sized, not full width */
+  .active-bus-panel {
+    top: calc(env(safe-area-inset-top, 0px) + 12px) !important;
+    left: 76px !important;
+    right: auto !important;
+    width: fit-content !important;
+    max-width: calc(100vw - 92px) !important;
+    z-index: 125 !important;
+  }
+
+  .active-bus-pill {
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    min-height: 50px !important;
+    padding: 9px 13px !important;
+    border-radius: 20px !important;
+    gap: 10px !important;
+  }
+
+  .bus-pill-left {
+    min-width: 0 !important;
+  }
+
+  .bus-pill-icon {
+    width: 38px !important;
+    height: 38px !important;
+    min-width: 38px !important;
+    border-radius: 14px !important;
+  }
+
+  .bus-pill-title {
+    font-size: 16px !important;
+    line-height: 1.05 !important;
+    white-space: nowrap !important;
+  }
+
+  .bus-pill-subtitle {
+    font-size: 12px !important;
+    line-height: 1.05 !important;
+    white-space: nowrap !important;
+  }
+
+  .chevron {
+    margin-left: 8px !important;
+    font-size: 17px !important;
+  }
+
+  /* Dropdown compact and clean */
+  .bus-dropdown {
+    width: min(300px, calc(100vw - 92px)) !important;
+    max-width: calc(100vw - 92px) !important;
+    margin-top: 10px !important;
+    padding: 10px !important;
+    border-radius: 20px !important;
+  }
+
+  .bus-dropdown.open {
+    max-height: min(46dvh, 330px) !important;
+  }
+
+  .bus-dropdown-header {
+    padding: 10px 10px 8px !important;
+    font-size: 12px !important;
+  }
+
+  .empty-dropdown {
+    padding: 22px 12px !important;
+    text-align: center !important;
+    color: #e5e7eb !important;
+    font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  }
+
+  .empty-dropdown .empty-icon {
+    display: none !important;
+  }
+
+  .empty-title {
+    display: block !important;
+    color: #ffffff !important;
+    font-size: 15px !important;
+    font-weight: 900 !important;
+    line-height: 1.2 !important;
+  }
+
+  .empty-subtitle {
+    display: block !important;
+    margin-top: 6px !important;
+    color: #a5b4fc !important;
+    font-size: 12px !important;
+    font-weight: 650 !important;
+    line-height: 1.35 !important;
+  }
+
+  /* Mobile: AI launcher should be icon only */
+  .ai-floating-button {
+    left: 16px !important;
+    right: auto !important;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 16px) !important;
+    width: 62px !important;
+    height: 62px !important;
+    min-width: 62px !important;
+    min-height: 62px !important;
+    max-width: 62px !important;
+    padding: 0 !important;
+    border-radius: 22px !important;
+    display: grid !important;
+    place-items: center !important;
+    z-index: 115 !important;
+  }
+
+  .ai-fab-copy {
+    display: none !important;
+  }
+
+  .ai-fab-orb,
+  .ai-fab-icon {
+    width: 46px !important;
+    height: 46px !important;
+    min-width: 46px !important;
+    margin: 0 !important;
+  }
+
+  /* MapLibre attribution/info hidden on mobile */
+  .maplibregl-ctrl-attrib,
+  .maplibregl-ctrl-logo,
+  .maplibregl-ctrl-bottom-left {
+    display: none !important;
+  }
+
+  /* Zoom/navigation controls in bottom-right */
+  .maplibregl-ctrl-bottom-right {
+    right: 12px !important;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 16px) !important;
+    z-index: 90 !important;
+  }
+
+  .maplibregl-ctrl-group {
+    border-radius: 16px !important;
+  }
+
+  /* When AI chatbot is open, hide map back + dropdown + AI launcher */
+  .map-page.ai-open .map-back-button,
+  .map-page.ai-open .active-bus-panel,
+  .map-page.ai-open .ai-floating-button {
+    display: none !important;
+  }
+
+  .map-page.ai-open .ai-chat-shell {
+    position: fixed !important;
+    left: 12px !important;
+    right: 12px !important;
+    top: calc(env(safe-area-inset-top, 0px) + 12px) !important;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 12px) !important;
+    width: auto !important;
+    height: auto !important;
+    max-width: none !important;
+    max-height: none !important;
+    border-radius: 24px !important;
+    z-index: 160 !important;
+  }
+}
+
+@media (max-width: 390px) {
+  .active-bus-panel {
+    left: 72px !important;
+    max-width: calc(100vw - 84px) !important;
+  }
+
+  .bus-dropdown {
+    width: min(286px, calc(100vw - 84px)) !important;
+    max-width: calc(100vw - 84px) !important;
+  }
+
+  .bus-pill-title {
+    font-size: 15px !important;
+  }
+
+  .bus-pill-subtitle {
+    font-size: 11px !important;
+  }
+}
+

@@ -1032,7 +1032,7 @@ export default function LiveMapPage() {
     };
   }, [cameraMode]);
   return (
-    <main className="map-page">
+    <main className={`map-page${aiOpen ? " ai-open" : ""}`}>
       <button
         type="button"
         className="map-back-button"
@@ -1103,8 +1103,8 @@ export default function LiveMapPage() {
 
           {busList.length === 0 && (
             <div className="empty-dropdown">
-              <span className="empty-icon">ÃƒÂ°Ã…Â¸Ã¢â‚¬ÂºÃ‚Â°ÃƒÂ¯Ã‚Â¸Ã‚Â</span>
-              <span>No active students</span>
+              <span className="empty-title">No active students</span>
+              <span className="empty-subtitle">No student is sharing location right now.</span>
             </div>
           )}
 
