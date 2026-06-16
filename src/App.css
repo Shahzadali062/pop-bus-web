@@ -2381,3 +2381,188 @@ body {
   font-weight: 800;
 }
 
+/* Professional mobile map UI */
+@media (max-width: 768px) {
+  .map-page {
+    width: 100vw !important;
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    overflow: hidden !important;
+  }
+
+  .map-back-button {
+    top: calc(env(safe-area-inset-top, 0px) + 12px) !important;
+    left: 14px !important;
+    width: 52px !important;
+    height: 52px !important;
+    border-radius: 18px !important;
+    z-index: 120 !important;
+    background: rgba(15, 23, 42, 0.94) !important;
+    border: 1px solid rgba(255, 255, 255, 0.16) !important;
+    box-shadow: 0 14px 32px rgba(15, 23, 42, 0.34) !important;
+  }
+
+  .map-back-button span {
+    font-size: 34px !important;
+  }
+
+  .active-bus-panel {
+    top: calc(env(safe-area-inset-top, 0px) + 12px) !important;
+    left: 78px !important;
+    right: 14px !important;
+    width: auto !important;
+    max-width: none !important;
+    z-index: 110 !important;
+  }
+
+  .active-bus-pill {
+    width: 100% !important;
+    min-height: 52px !important;
+    padding: 10px 14px !important;
+    border-radius: 20px !important;
+    gap: 10px !important;
+    box-shadow: 0 14px 32px rgba(15, 23, 42, 0.28) !important;
+  }
+
+  .bus-pill-icon {
+    width: 38px !important;
+    height: 38px !important;
+    min-width: 38px !important;
+    border-radius: 14px !important;
+  }
+
+  .bus-pill-title {
+    font-size: 17px !important;
+    line-height: 1.15 !important;
+  }
+
+  .bus-pill-subtitle {
+    font-size: 13px !important;
+    line-height: 1.15 !important;
+  }
+
+  .bus-pill-chevron,
+  .active-bus-chevron {
+    margin-left: auto !important;
+    font-size: 18px !important;
+  }
+
+  .bus-dropdown {
+    width: 100% !important;
+    margin-top: 10px !important;
+    max-height: 48dvh !important;
+    overflow-y: auto !important;
+    border-radius: 20px !important;
+    padding: 10px !important;
+  }
+
+  .bus-dropdown-header {
+    font-size: 12px !important;
+    letter-spacing: 0.06em !important;
+    margin-bottom: 8px !important;
+  }
+
+  .bus-dropdown-item {
+    width: 100% !important;
+    padding: 12px !important;
+    border-radius: 16px !important;
+  }
+
+  .bus-empty-state,
+  .empty-students,
+  .no-active-students {
+    padding: 18px 10px !important;
+    text-align: center !important;
+  }
+
+  .ai-floating-button {
+    left: 16px !important;
+    right: auto !important;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 18px) !important;
+    width: auto !important;
+    max-width: 260px !important;
+    min-height: 58px !important;
+    padding: 10px 14px !important;
+    border-radius: 22px !important;
+    gap: 10px !important;
+    z-index: 105 !important;
+    box-shadow: 0 16px 35px rgba(15, 23, 42, 0.28) !important;
+  }
+
+  .ai-fab-icon {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    border-radius: 16px !important;
+  }
+
+  .ai-fab-copy strong {
+    font-size: 14px !important;
+    line-height: 1.1 !important;
+    white-space: nowrap !important;
+  }
+
+  .ai-fab-copy small {
+    font-size: 11px !important;
+    line-height: 1.1 !important;
+    white-space: nowrap !important;
+  }
+
+  .maplibregl-ctrl-bottom-right {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 94px) !important;
+    right: 12px !important;
+  }
+
+  .maplibregl-ctrl-bottom-left {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 14px) !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .active-bus-panel {
+    left: 76px !important;
+    right: 12px !important;
+  }
+
+  .map-back-button {
+    left: 12px !important;
+    width: 50px !important;
+    height: 50px !important;
+  }
+
+  .active-bus-pill {
+    min-height: 50px !important;
+    padding: 9px 12px !important;
+  }
+
+  .bus-pill-title {
+    font-size: 16px !important;
+  }
+
+  .bus-pill-subtitle {
+    font-size: 12px !important;
+  }
+
+  .ai-floating-button {
+    max-width: 238px !important;
+    min-height: 54px !important;
+    padding: 9px 12px !important;
+  }
+
+  .ai-fab-icon {
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+  }
+}
+
+@media (max-width: 360px) {
+  .ai-fab-copy small {
+    display: none !important;
+  }
+
+  .ai-floating-button {
+    max-width: 210px !important;
+  }
+}
+
