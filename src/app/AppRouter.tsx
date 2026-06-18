@@ -9,6 +9,7 @@ import HomePage from "../features/home/pages/HomePage";
 import DriverTrackingPage from "../features/driverTracking/pages/DriverTrackingPage";
 import WebTrackingRuntime from "../features/driverTracking/runtime/WebTrackingRuntime";
 import LiveMapPage from "../features/liveMap/pages/LiveMapPage";
+import StaticLocationPage from "../features/staticLocation/pages/StaticLocationPage";
 
 export default function AppRouter() {
   return (
@@ -26,6 +27,11 @@ export default function AppRouter() {
         <Route
           path="/map"
           element={<LiveMapPage />}
+        />
+
+        <Route
+          path="/static-location"
+          element={<StaticLocationPage />}
         />
 
         <Route
