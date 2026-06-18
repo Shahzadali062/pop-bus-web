@@ -23,14 +23,11 @@ type SelectedPoint = {
 
 type Step = "pick" | "details";
 
-const KKU_CENTER: [number, number] = [
-  102.830636,
-  16.473921,
-];
+const KKU_CENTER: [number, number] = [102.8215, 16.46];
 
 const KKU_BOUNDS: [[number, number], [number, number]] = [
-  [102.8195, 16.4675],
-  [102.8395, 16.4835],
+  [102.798, 16.438],
+  [102.845, 16.482],
 ];
 
 const COLLEGE_OF_LOCAL_ADMINISTRATION: [number, number] = [
@@ -453,3 +450,4 @@ export default function StaticLocationPage() {
     </main>
   );
 }
+
