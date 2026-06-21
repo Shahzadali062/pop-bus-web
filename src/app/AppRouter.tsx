@@ -10,6 +10,8 @@ import DriverTrackingPage from "../features/driverTracking/pages/DriverTrackingP
 import WebTrackingRuntime from "../features/driverTracking/runtime/WebTrackingRuntime";
 import LiveMapPage from "../features/liveMap/pages/LiveMapPage";
 import StaticLocationPage from "../features/staticLocation/pages/StaticLocationPage";
+import CharacterAnimationPage from "../features/characterAnimation/pages/CharacterAnimationPage";
+import CharacterControllerPage from "../features/characterAnimation/pages/CharacterControllerPage";
 
 export default function AppRouter() {
   return (
@@ -32,6 +34,16 @@ export default function AppRouter() {
         <Route
           path="/static-location"
           element={<StaticLocationPage />}
+        />
+
+        <Route
+          path="/character"
+          element={<CharacterAnimationPage />}
+        />
+
+        <Route
+          path="/character-controller/:roomId"
+          element={<CharacterControllerPage />}
         />
 
         <Route

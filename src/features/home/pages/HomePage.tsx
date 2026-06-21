@@ -26,7 +26,7 @@ export default function HomePage() {
         <h1 style={{ marginTop: 0 }}>Welcome to Tracking System</h1>
 
         <p style={{ color: "#cbd5e1", lineHeight: 1.6 }}>
-          Share your live location, select a static campus point, or view online students in real time.
+          Share your live location, select a static campus point, control a 3D character, or view online students in real time.
         </p>
 
         <div
@@ -64,6 +64,21 @@ export default function HomePage() {
             }}
           >
             Select a Static Location
+          </Link>
+
+          <Link
+            to="/character"
+            style={{
+              padding: 16,
+              borderRadius: 16,
+              background: "linear-gradient(135deg, #ec4899, #8b5cf6)",
+              color: "#ffffff",
+              fontWeight: 800,
+              textAlign: "center",
+              textDecoration: "none",
+            }}
+          >
+            3D Character Animation
           </Link>
 
           <Link
