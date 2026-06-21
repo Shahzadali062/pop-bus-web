@@ -395,3 +395,43 @@
 .character-copy-button-compact {
   width: min(320px, 76vw);
 }
+
+
+/* FULLSCREEN_CHARACTER_ONLY_START */
+
+/* Viewer page: hide right panel and show only character */
+.character-page {
+  grid-template-columns: 1fr !important;
+  width: 100vw !important;
+  min-height: 100dvh !important;
+  overflow: hidden !important;
+}
+
+.character-panel {
+  display: none !important;
+}
+
+.character-stage {
+  width: 100vw !important;
+  min-height: 100dvh !important;
+  padding: 0 !important;
+}
+
+.character-canvas {
+  width: 100vw !important;
+  height: 100dvh !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* QR waiting screen also full screen */
+.character-wait-card {
+  width: 100vw !important;
+  min-height: 100dvh !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* FULLSCREEN_CHARACTER_ONLY_END */
