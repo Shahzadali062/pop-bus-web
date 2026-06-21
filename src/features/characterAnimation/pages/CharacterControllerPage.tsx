@@ -1,12 +1,12 @@
 ﻿import { useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { Activity, Footprints, PersonStanding, Sparkles } from "lucide-react";
 import { io, type Socket } from "socket.io-client";
 
 import { SERVER_URL } from "../../../shared/config/server";
 import "./CharacterControllerPage.css";
 
-type CharacterAction = "idle" | "walk" | "run";
+type CharacterAction = "idle" | "walk" | "run" | "jump" | "spin";
 
 const CONTROLS: Array<{
   action: CharacterAction;
@@ -16,6 +16,8 @@ const CONTROLS: Array<{
   { action: "idle", label: "Idle", hint: "Standing animation" },
   { action: "walk", label: "Walk", hint: "Walking animation" },
   { action: "run", label: "Run", hint: "Running animation" },
+  { action: "jump", label: "Jump", hint: "Jump movement" },
+  { action: "spin", label: "Spin", hint: "Rotate character" },
 ];
 
 export default function CharacterControllerPage() {
@@ -154,10 +156,6 @@ export default function CharacterControllerPage() {
         {message && (
           <p className="controller-message">{message}</p>
         )}
-
-        <Link to="/" className="controller-home-link">
-          Back to Home
-        </Link>
       </section>
     </main>
   );

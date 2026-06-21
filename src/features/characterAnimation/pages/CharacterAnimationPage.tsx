@@ -9,20 +9,24 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { SERVER_URL } from "../../../shared/config/server";
 import "./CharacterAnimationPage.css";
 
-type CharacterAction = "idle" | "walk" | "run";
+type CharacterAction = "idle" | "walk" | "run" | "jump" | "spin";
 
-const ACTIONS: CharacterAction[] = ["idle", "walk", "run"];
+const ACTIONS: CharacterAction[] = ["idle", "walk", "run", "jump", "spin"];
 
 const ACTION_LABELS: Record<CharacterAction, string> = {
   idle: "Idle",
   walk: "Walk",
   run: "Run",
+  jump: "Jump",
+  spin: "Spin",
 };
 
 const ACTION_KEYWORDS: Record<CharacterAction, string[]> = {
   idle: ["idle"],
   walk: ["walk"],
   run: ["run"],
+  jump: ["jump"],
+  spin: ["spin"],
 };
 
 const PUBLIC_WEB_URL = "https://pop-bus-web.vercel.app";
@@ -295,6 +299,16 @@ export default function CharacterAnimationPage() {
 
         if (action === "run") {
           modelRootNow.position.y = Math.abs(Math.sin(elapsed * 12)) * 0.07;
+        }
+
+        if (action === "jump") {
+          modelRootNow.position.y =
+            Math.max(0, Math.sin(elapsed * Math.PI * 2.2)) * 0.55;
+        }
+
+        if (action === "spin") {
+          modelRootNow.rotation.y += delta * 3.4;
+          modelRootNow.position.y = Math.sin(elapsed * 5) * 0.035;
         }
 
         modelRootNow.rotation.x *= 0.9;
