@@ -6,7 +6,7 @@ import { io, type Socket } from "socket.io-client";
 import { SERVER_URL } from "../../../shared/config/server";
 import "./CharacterControllerPage.css";
 
-type CharacterAction = "idle" | "walk" | "run" | "jump" | "spin";
+type CharacterAction = "idle" | "walk" | "run" | "superjump" | "fastspin" | "moonwalk" | "power" | "victory" | "slowmo" | "speedboost";
 
 const CONTROLS: Array<{
   action: CharacterAction;
@@ -16,8 +16,13 @@ const CONTROLS: Array<{
   { action: "idle", label: "Idle", hint: "Standing animation" },
   { action: "walk", label: "Walk", hint: "Walking animation" },
   { action: "run", label: "Run", hint: "Running animation" },
-  { action: "jump", label: "Jump", hint: "Jump movement" },
-  { action: "spin", label: "Spin", hint: "Rotate character" },
+  { action: "superjump", label: "Super Jump", hint: "High jump effect" },
+  { action: "fastspin", label: "Fast Spin", hint: "Fast rotation effect" },
+  { action: "moonwalk", label: "Moonwalk", hint: "Reverse walk style" },
+  { action: "power", label: "Power Mode", hint: "Glow-style pulse effect" },
+  { action: "victory", label: "Victory", hint: "Jump and spin celebration" },
+  { action: "slowmo", label: "Slow Motion", hint: "Slow animation mode" },
+  { action: "speedboost", label: "Speed Boost", hint: "Fast running mode" },
 ];
 
 export default function CharacterControllerPage() {

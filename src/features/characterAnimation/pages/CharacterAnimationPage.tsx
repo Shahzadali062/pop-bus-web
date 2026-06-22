@@ -9,24 +9,34 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { SERVER_URL } from "../../../shared/config/server";
 import "./CharacterAnimationPage.css";
 
-type CharacterAction = "idle" | "walk" | "run" | "jump" | "spin";
+type CharacterAction = "idle" | "walk" | "run" | "superjump" | "fastspin" | "moonwalk" | "power" | "victory" | "slowmo" | "speedboost";
 
-const ACTIONS: CharacterAction[] = ["idle", "walk", "run", "jump", "spin"];
+const ACTIONS: CharacterAction[] = ["idle", "walk", "run", "superjump", "fastspin", "moonwalk", "power", "victory", "slowmo", "speedboost"];
 
 const ACTION_LABELS: Record<CharacterAction, string> = {
   idle: "Idle",
   walk: "Walk",
   run: "Run",
-  jump: "Jump",
-  spin: "Spin",
+  superjump: "Super Jump",
+  fastspin: "Fast Spin",
+  moonwalk: "Moonwalk",
+  power: "Power Mode",
+  victory: "Victory",
+  slowmo: "Slow Motion",
+  speedboost: "Speed Boost",
 };
 
 const ACTION_KEYWORDS: Record<CharacterAction, string[]> = {
   idle: ["idle"],
   walk: ["walk"],
   run: ["run"],
-  jump: ["jump"],
-  spin: ["spin"],
+  superjump: ["run", "walk", "idle"],
+  fastspin: ["run", "walk", "idle"],
+  moonwalk: ["walk"],
+  power: ["idle"],
+  victory: ["run", "walk", "idle"],
+  slowmo: ["walk", "run", "idle"],
+  speedboost: ["run"],
 };
 
 const PUBLIC_WEB_URL = "https://pop-bus-web.vercel.app";
@@ -83,6 +93,9 @@ export default function CharacterAnimationPage() {
     const nextAction = actionsRef.current[matchedClip];
 
     currentActionRef.current?.fadeOut(0.18);
+
+    nextAction.timeScale =
+      action === "slowmo" ? 0.35 : action === "speedboost" ? 2.4 : 1;
 
     nextAction.reset().fadeIn(0.18).play();
 
@@ -289,26 +302,69 @@ export default function CharacterAnimationPage() {
 
       if (modelRootNow) {
         if (action === "idle") {
-          modelRootNow.rotation.y += delta * 0.2;
+          modelRootNow.rotation.y += delta * 0.18;
           modelRootNow.position.y = Math.sin(elapsed * 2.2) * 0.018;
+          modelRootNow.scale.setScalar(1);
         }
 
         if (action === "walk") {
           modelRootNow.position.y = Math.abs(Math.sin(elapsed * 8)) * 0.045;
+          modelRootNow.scale.setScalar(1);
         }
 
         if (action === "run") {
           modelRootNow.position.y = Math.abs(Math.sin(elapsed * 12)) * 0.07;
+          modelRootNow.scale.setScalar(1);
         }
 
-        if (action === "jump") {
+        if (action === "superjump") {
           modelRootNow.position.y =
-            Math.max(0, Math.sin(elapsed * Math.PI * 2.2)) * 0.55;
+            Math.max(0, Math.sin(elapsed * Math.PI * 1.8)) * 0.95;
+          modelRootNow.rotation.y += delta * 1.1;
+          modelRootNow.scale.setScalar(1.03);
         }
 
-        if (action === "spin") {
-          modelRootNow.rotation.y += delta * 3.4;
-          modelRootNow.position.y = Math.sin(elapsed * 5) * 0.035;
+        if (action === "fastspin") {
+          modelRootNow.rotation.y += delta * 5.4;
+          modelRootNow.position.y = Math.sin(elapsed * 7) * 0.045;
+          modelRootNow.scale.setScalar(1);
+        }
+
+        if (action === "moonwalk") {
+          modelRootNow.rotation.y = Math.PI;
+          modelRootNow.position.y = Math.abs(Math.sin(elapsed * 8)) * 0.045;
+          modelRootNow.position.z = Math.sin(elapsed * 2.2) * 0.16;
+          modelRootNow.scale.setScalar(1);
+        }
+
+        if (action === "power") {
+          const pulse = 1 + Math.sin(elapsed * 8) * 0.055;
+          modelRootNow.scale.setScalar(pulse);
+          modelRootNow.rotation.y += delta * 0.75;
+          modelRootNow.position.y = Math.abs(Math.sin(elapsed * 5)) * 0.09;
+        }
+
+        if (action === "victory") {
+          modelRootNow.position.y =
+            Math.abs(Math.sin(elapsed * Math.PI * 2.2)) * 0.45;
+          modelRootNow.rotation.y += delta * 2.2;
+          modelRootNow.scale.setScalar(1.04);
+        }
+
+        if (action === "slowmo") {
+          modelRootNow.position.y = Math.abs(Math.sin(elapsed * 2.5)) * 0.03;
+          modelRootNow.rotation.y += delta * 0.08;
+          modelRootNow.scale.setScalar(1);
+        }
+
+        if (action === "speedboost") {
+          modelRootNow.position.y = Math.abs(Math.sin(elapsed * 18)) * 0.09;
+          modelRootNow.rotation.y += delta * 0.9;
+          modelRootNow.scale.setScalar(1.02);
+        }
+
+        if (action !== "moonwalk") {
+          modelRootNow.rotation.y += 0;
         }
 
         modelRootNow.rotation.x *= 0.9;
