@@ -499,8 +499,6 @@ export default function MiniGamePage() {
     const clock = new THREE.Clock();
 
     const inputDirection = new THREE.Vector3();
-    const facingDirection = new THREE.Vector3();
-    const targetVelocity = new THREE.Vector3();
     const cameraGoal = new THREE.Vector3();
     const lookGoal = new THREE.Vector3();
     const yAxis = new THREE.Vector3(0, 1, 0);
@@ -529,15 +527,13 @@ export default function MiniGamePage() {
         const joystick = joystickRef.current;
 
         /*
-          Natural 3D character movement fix:
-          - Joystick down/back is preserved.
-          - Character does NOT slide/drag backward.
-          - If direction changes a lot, character turns first, then walks.
-          - Movement follows character facing direction.
-          - Only Y-axis rotation is allowed.
-          - World/camera/ground remain stable.
+          Final joystick direction fix:
+          - Down/backward joystick value is preserved.
+          - Movement uses joystick direction directly, so backward is not lost.
+          - Character smoothly turns to movement direction on Y-axis only.
+          - Speed is controlled fast-walk, not aggressive sprint.
         */
-        const deadZone = 0.08;
+        const deadZone = 0.1;
 
         const rawX = THREE.MathUtils.clamp(joystick.x, -1, 1);
         const rawY = THREE.MathUtils.clamp(joystick.y, -1, 1);
@@ -554,121 +550,68 @@ export default function MiniGamePage() {
 
         inputDirection.set(rawX, 0, rawY);
 
-        const hasInput = inputPower > 0.02 && inputDirection.lengthSq() > 0.001;
+        const hasInput = inputPower > 0.025 && inputDirection.lengthSq() > 0.001;
         const isBoosting = now < boostUntilRef.current;
 
         if (hasInput) {
           inputDirection.normalize();
 
+          // Character face follows exact movement direction.
           const targetYaw =
             Math.atan2(inputDirection.x, inputDirection.z) + MODEL_YAW_OFFSET;
 
-          const currentYaw = player.rotation.y;
+          targetQuaternionRef.current.setFromAxisAngle(yAxis, targetYaw);
 
-          // Shortest Y-axis angle difference.
-          const yawDiff = Math.atan2(
-            Math.sin(targetYaw - currentYaw),
-            Math.cos(targetYaw - currentYaw)
-          );
+          const turnRate = THREE.MathUtils.lerp(16, 30, inputPower) +
+            (isBoosting ? 3 : 0);
 
-          const absYawDiff = Math.abs(yawDiff);
+          const turnAlpha = 1 - Math.exp(-turnRate * delta);
+          player.quaternion.slerp(targetQuaternionRef.current, turnAlpha);
 
-          /*
-            Important:
-            180-degree reverse/down direction needs quick turn-in-place.
-            Movement is reduced while turning, so character does not look dragged.
-          */
-          const turnSpeed =
-            THREE.MathUtils.lerp(9.5, 17.5, inputPower) +
-            (absYawDiff > 1.55 ? 8.5 : 0) +
-            (isBoosting ? 2.5 : 0);
-
-          const maxTurnStep = turnSpeed * delta;
-          const yawStep = THREE.MathUtils.clamp(
-            yawDiff,
-            -maxTurnStep,
-            maxTurnStep
-          );
-
-          const nextYaw = currentYaw + yawStep;
-
-          targetQuaternionRef.current.setFromAxisAngle(yAxis, nextYaw);
-          player.quaternion.copy(targetQuaternionRef.current);
-
-          // Upright lock.
+          // Upright lock: never allow sideways/upside-down rotation.
           player.rotation.x = 0;
           player.rotation.z = 0;
 
-          facingDirection
-            .set(
-              Math.sin(nextYaw - MODEL_YAW_OFFSET),
-              0,
-              Math.cos(nextYaw - MODEL_YAW_OFFSET)
-            )
-            .normalize();
+          moveDirectionRef.current.lerp(inputDirection, 1 - Math.exp(-18 * delta));
 
-          moveDirectionRef.current.copy(facingDirection);
+          const slowWalkSpeed = 0.75;
+          const fastWalkSpeed = 2.35;
+          const boostSpeed = 3.05;
 
-          /*
-            Alignment gate:
-            If body is not facing target direction yet, slow movement down.
-            This makes down/back look like natural turn + walk, not sliding.
-          */
-          let alignmentFactor = 1;
+          const targetSpeed = isBoosting
+            ? boostSpeed
+            : THREE.MathUtils.lerp(slowWalkSpeed, fastWalkSpeed, inputPower);
 
-          if (absYawDiff > 1.7) {
-            alignmentFactor = 0.08;
-          } else if (absYawDiff > 1.05) {
-            alignmentFactor = 0.22;
-          } else if (absYawDiff > 0.55) {
-            alignmentFactor = 0.55;
-          }
-
-          const slowWalkSpeed = 0.55;
-          const fastWalkSpeed = 1.75;
-          const boostSpeed = 2.35;
-
-          const targetSpeed =
-            (isBoosting
-              ? boostSpeed
-              : THREE.MathUtils.lerp(slowWalkSpeed, fastWalkSpeed, inputPower)) *
-            alignmentFactor;
+          const accelRate = isBoosting ? 9.2 : 8.4;
 
           currentSpeedRef.current +=
             (targetSpeed - currentSpeedRef.current) *
-            (1 - Math.exp(-10.5 * delta));
+            (1 - Math.exp(-accelRate * delta));
 
-          targetVelocity
-            .copy(facingDirection)
-            .multiplyScalar(currentSpeedRef.current);
-
-          velocityRef.current.lerp(
-            targetVelocity,
-            1 - Math.exp(-18 * delta)
-          );
+          velocityRef.current.copy(inputDirection).multiplyScalar(currentSpeedRef.current);
 
           player.position.x += velocityRef.current.x * delta;
           player.position.z += velocityRef.current.z * delta;
 
           const speedRatio = Math.min(1, currentSpeedRef.current / fastWalkSpeed);
 
-          // During big turn, keep walk animation slow so it feels like turning.
-          if (absYawDiff > 0.85) {
-            playClip("walk", 0.62);
+          if (isBoosting && speedRatio > 0.82) {
+            playClip("run", 1.05);
           } else {
-            playClip("walk", THREE.MathUtils.lerp(0.72, 1.02, speedRatio));
+            playClip("walk", THREE.MathUtils.lerp(0.72, 1.08, speedRatio));
           }
         } else {
+          // Smooth deceleration using last velocity vector.
           currentSpeedRef.current +=
             (0 - currentSpeedRef.current) *
             (1 - Math.exp(-12.5 * delta));
 
-          velocityRef.current.multiplyScalar(Math.exp(-10.5 * delta));
+          velocityRef.current.multiplyScalar(1 - Math.exp(-10.5 * delta));
 
           if (velocityRef.current.lengthSq() > 0.0008) {
             player.position.x += velocityRef.current.x * delta;
             player.position.z += velocityRef.current.z * delta;
-            playClip("walk", 0.65);
+            playClip("walk", 0.68);
           } else {
             currentSpeedRef.current = 0;
             velocityRef.current.set(0, 0, 0);
