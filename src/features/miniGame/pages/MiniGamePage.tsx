@@ -503,6 +503,8 @@ export default function MiniGamePage() {
     const lookGoal = new THREE.Vector3();
     const yAxis = new THREE.Vector3(0, 1, 0);
     const scaleOne = new THREE.Vector3(1, 1, 1);
+    const cameraForward = new THREE.Vector3();
+    const cameraRight = new THREE.Vector3();
 
     const animate = () => {
       const delta = Math.min(clock.getDelta(), 0.04);
@@ -526,23 +528,44 @@ export default function MiniGamePage() {
       if (player && status === "playing") {
         const joystick = joystickRef.current;
 
-        inputDirection.set(joystick.x, 0, joystick.y);
+        const deadZone = 0.14;
+        const inputPower =
+          joystick.magnitude < deadZone
+            ? 0
+            : Math.min(1, (joystick.magnitude - deadZone) / (1 - deadZone));
 
-        const hasInput = inputDirection.lengthSq() > 0.01;
+        camera.getWorldDirection(cameraForward);
+        cameraForward.y = 0;
+
+        if (cameraForward.lengthSq() < 0.001) {
+          cameraForward.set(0, 0, -1);
+        }
+
+        cameraForward.normalize();
+        cameraRight.set(cameraForward.z, 0, -cameraForward.x).normalize();
+
+        inputDirection
+          .copy(cameraRight)
+          .multiplyScalar(joystick.x)
+          .addScaledVector(cameraForward, -joystick.y);
+
+        const hasInput = inputPower > 0.02 && inputDirection.lengthSq() > 0.001;
         const isBoosting = now < boostUntilRef.current;
 
         if (hasInput) {
           inputDirection.normalize();
           moveDirectionRef.current.lerp(inputDirection, 1 - Math.exp(-16 * delta));
+        } else {
+          inputDirection.set(0, 0, 0);
         }
 
         const targetSpeed = hasInput
-          ? (isBoosting ? 5.7 : 2.1 + joystick.magnitude * 1.75)
+          ? (isBoosting ? 5.7 : 2.1 + inputPower * 1.75)
           : 0;
 
         desiredVelocity
           .copy(inputDirection)
-          .multiplyScalar(targetSpeed * joystick.magnitude);
+          .multiplyScalar(targetSpeed * inputPower);
 
         const acceleration = hasInput ? 1 - Math.exp(-9.8 * delta) : 1 - Math.exp(-13.5 * delta);
         velocityRef.current.lerp(desiredVelocity, acceleration);
@@ -591,12 +614,16 @@ export default function MiniGamePage() {
         player.position.z = THREE.MathUtils.clamp(player.position.z, -7.2, 7.2);
 
         if (now < hitUntilRef.current) {
-          player.rotation.z = Math.sin(now * 0.04) * 0.12;
-          player.scale.setScalar(1.035);
+          const hitPulse = 1.02 + Math.abs(Math.sin(now * 0.045)) * 0.025;
+          player.scale.setScalar(hitPulse);
         } else {
-          player.rotation.z *= 1 - Math.min(1, delta * 9);
           player.scale.lerp(scaleOne, 1 - Math.exp(-8 * delta));
         }
+
+        // Critical upright lock:
+        // Player root must never tilt on X/Z. Only Y-axis yaw is allowed.
+        player.rotation.x = 0;
+        player.rotation.z = 0;
 
         coinsRef.current.forEach((coin) => {
           coin.rotation.y += delta * 4.5;
@@ -686,6 +713,10 @@ export default function MiniGamePage() {
       });
 
       if (player) {
+        // Final frame safety: keep character standing upright.
+        player.rotation.x = 0;
+        player.rotation.z = 0;
+
         const cameraDirection = moveDirectionRef.current.clone();
 
         if (cameraDirection.lengthSq() < 0.01) {
