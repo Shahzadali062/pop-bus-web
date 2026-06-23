@@ -82,6 +82,21 @@ export default function HomePage() {
           </Link>
 
           <Link
+            to="/game"
+            style={{
+              padding: 16,
+              borderRadius: 16,
+              background: "linear-gradient(135deg, #f97316, #ec4899)",
+              color: "#ffffff",
+              fontWeight: 800,
+              textAlign: "center",
+              textDecoration: "none",
+            }}
+          >
+            Play a Mini Game
+          </Link>
+
+          <Link
             to="/map"
             style={{
               padding: 16,

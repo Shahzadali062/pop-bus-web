@@ -12,6 +12,8 @@ import LiveMapPage from "../features/liveMap/pages/LiveMapPage";
 import StaticLocationPage from "../features/staticLocation/pages/StaticLocationPage";
 import CharacterAnimationPage from "../features/characterAnimation/pages/CharacterAnimationPage";
 import CharacterControllerPage from "../features/characterAnimation/pages/CharacterControllerPage";
+import MiniGamePage from "../features/miniGame/pages/MiniGamePage";
+import MiniGameControllerPage from "../features/miniGame/pages/MiniGameControllerPage";
 
 export default function AppRouter() {
   return (
@@ -50,6 +52,8 @@ export default function AppRouter() {
           path="*"
           element={<Navigate to="/" replace />}
         />
+              <Route path="/game" element={<MiniGamePage />} />
+        <Route path="/game-controller/:roomId" element={<MiniGameControllerPage />} />
       </Routes>
     </BrowserRouter>
   );
