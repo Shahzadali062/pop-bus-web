@@ -611,18 +611,29 @@ export default function MiniGamePage() {
 
           /*
             Alignment gate:
-            If body is not facing target direction yet, slow movement down.
-            This makes down/back look like natural turn + walk, not sliding.
+            Reverse/down input should never keep drifting in the old direction.
+            Movement ramps in only after the character starts facing the
+            requested joystick direction.
           */
-          let alignmentFactor = 1;
+          const directionAlignment = THREE.MathUtils.clamp(
+            facingDirection.dot(inputDirection),
+            -1,
+            1
+          );
 
-          if (absYawDiff > 1.7) {
-            alignmentFactor = 0.08;
-          } else if (absYawDiff > 1.05) {
-            alignmentFactor = 0.22;
-          } else if (absYawDiff > 0.55) {
-            alignmentFactor = 0.55;
+          if (
+            directionAlignment < 0 &&
+            velocityRef.current.dot(inputDirection) < 0
+          ) {
+            velocityRef.current.multiplyScalar(Math.exp(-24 * delta));
+            currentSpeedRef.current *= Math.exp(-18 * delta);
           }
+
+          const alignmentFactor = THREE.MathUtils.smoothstep(
+            directionAlignment,
+            -0.05,
+            0.92
+          );
 
           const slowWalkSpeed = 0.55;
           const fastWalkSpeed = 1.75;
