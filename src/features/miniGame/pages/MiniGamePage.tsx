@@ -503,8 +503,6 @@ export default function MiniGamePage() {
     const lookGoal = new THREE.Vector3();
     const yAxis = new THREE.Vector3(0, 1, 0);
     const scaleOne = new THREE.Vector3(1, 1, 1);
-    const cameraForward = new THREE.Vector3();
-    const cameraRight = new THREE.Vector3();
 
     const animate = () => {
       const delta = Math.min(clock.getDelta(), 0.04);
@@ -534,33 +532,26 @@ export default function MiniGamePage() {
             ? 0
             : Math.min(1, (joystick.magnitude - deadZone) / (1 - deadZone));
 
-        camera.getWorldDirection(cameraForward);
-        cameraForward.y = 0;
-
-        if (cameraForward.lengthSq() < 0.001) {
-          cameraForward.set(0, 0, -1);
-        }
-
-        cameraForward.normalize();
-        cameraRight.set(cameraForward.z, 0, -cameraForward.x).normalize();
-
-        inputDirection
-          .copy(cameraRight)
-          .multiplyScalar(joystick.x)
-          .addScaledVector(cameraForward, -joystick.y);
+        /*
+          Stable world-space joystick mapping:
+          - joystick.x controls left/right on world X.
+          - joystick.y controls forward/back on world Z.
+          - Camera is NOT used to calculate movement, so camera/world will not spin.
+        */
+        inputDirection.set(joystick.x, 0, joystick.y);
 
         const hasInput = inputPower > 0.02 && inputDirection.lengthSq() > 0.001;
         const isBoosting = now < boostUntilRef.current;
 
         if (hasInput) {
           inputDirection.normalize();
-          moveDirectionRef.current.lerp(inputDirection, 1 - Math.exp(-16 * delta));
+          moveDirectionRef.current.lerp(inputDirection, 1 - Math.exp(-14 * delta));
         } else {
           inputDirection.set(0, 0, 0);
         }
 
         const targetSpeed = hasInput
-          ? (isBoosting ? 5.7 : 2.1 + inputPower * 1.75)
+          ? (isBoosting ? 5.2 : 1.9 + inputPower * 1.65)
           : 0;
 
         desiredVelocity
@@ -714,33 +705,36 @@ export default function MiniGamePage() {
 
       if (player) {
         // Final frame safety: keep character standing upright.
+        // Only Y-axis yaw is allowed. No X/Z tilt.
         player.rotation.x = 0;
         player.rotation.z = 0;
 
-        const cameraDirection = moveDirectionRef.current.clone();
-
-        if (cameraDirection.lengthSq() < 0.01) {
-          cameraDirection.set(0, 0, -1);
-        }
-
-        cameraDirection.normalize();
-
+        /*
+          Stable adventure-game camera:
+          - Fixed offset behind/above the arena.
+          - It follows player position only.
+          - It does NOT orbit based on joystick direction.
+        */
         cameraGoal.set(
-          player.position.x - cameraDirection.x * 8.7,
-          player.position.y + 5.8,
-          player.position.z - cameraDirection.z * 8.7
+          player.position.x,
+          player.position.y + 6.2,
+          player.position.z + 9.6
         );
 
         if (screenShakeRef.current > 0) {
           cameraGoal.x += (Math.random() - 0.5) * screenShakeRef.current;
-          cameraGoal.y += (Math.random() - 0.5) * screenShakeRef.current * 0.7;
+          cameraGoal.y += (Math.random() - 0.5) * screenShakeRef.current * 0.6;
           screenShakeRef.current = Math.max(0, screenShakeRef.current - delta * 1.9);
         }
 
-        lookGoal.set(player.position.x, player.position.y + 0.95, player.position.z);
+        lookGoal.set(
+          player.position.x,
+          player.position.y + 0.9,
+          player.position.z
+        );
 
-        camera.position.lerp(cameraGoal, 1 - Math.exp(-4.5 * delta));
-        cameraTargetRef.current.lerp(lookGoal, 1 - Math.exp(-7.5 * delta));
+        camera.position.lerp(cameraGoal, 1 - Math.exp(-4.2 * delta));
+        cameraTargetRef.current.lerp(lookGoal, 1 - Math.exp(-7.2 * delta));
         camera.lookAt(cameraTargetRef.current);
       }
 
