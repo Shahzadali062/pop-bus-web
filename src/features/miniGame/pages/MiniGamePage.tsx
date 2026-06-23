@@ -70,7 +70,7 @@ export default function MiniGamePage() {
   const velocityRef = useRef(new THREE.Vector3());
   const currentSpeedRef = useRef(0);
   const moveDirectionRef = useRef(new THREE.Vector3(0, 0, -1));
-  const targetQuaternionRef = useRef(new THREE.Quaternion());
+  const playerYawRef = useRef(0);
   const cameraTargetRef = useRef(new THREE.Vector3(0, 0.9, 0));
 
   const jumpVelocityRef = useRef(0);
@@ -181,6 +181,7 @@ export default function MiniGamePage() {
     currentSpeedRef.current = 0;
     knockbackVelocityRef.current.set(0, 0, 0);
     moveDirectionRef.current.set(0, 0, -1);
+    playerYawRef.current = 0;
     jumpVelocityRef.current = 0;
     isGroundedRef.current = true;
     boostUntilRef.current = 0;
@@ -503,7 +504,6 @@ export default function MiniGamePage() {
     const targetVelocity = new THREE.Vector3();
     const cameraGoal = new THREE.Vector3();
     const lookGoal = new THREE.Vector3();
-    const yAxis = new THREE.Vector3(0, 1, 0);
     const scaleOne = new THREE.Vector3(1, 1, 1);
 
     const animate = () => {
@@ -563,7 +563,7 @@ export default function MiniGamePage() {
           const targetYaw =
             Math.atan2(inputDirection.x, inputDirection.z) + MODEL_YAW_OFFSET;
 
-          const currentYaw = player.rotation.y;
+          const currentYaw = playerYawRef.current;
 
           // Shortest Y-axis angle difference.
           const yawDiff = Math.atan2(
@@ -592,12 +592,8 @@ export default function MiniGamePage() {
 
           const nextYaw = currentYaw + yawStep;
 
-          targetQuaternionRef.current.setFromAxisAngle(yAxis, nextYaw);
-          player.quaternion.copy(targetQuaternionRef.current);
-
-          // Upright lock.
-          player.rotation.x = 0;
-          player.rotation.z = 0;
+          playerYawRef.current = nextYaw;
+          player.rotation.set(0, nextYaw, 0);
 
           facingDirection
             .set(
@@ -686,8 +682,7 @@ export default function MiniGamePage() {
             playClip("idle", 1);
           }
 
-          player.rotation.x = 0;
-          player.rotation.z = 0;
+          player.rotation.set(0, playerYawRef.current, 0);
         }
 
         knockbackVelocityRef.current.multiplyScalar(1 - Math.min(1, delta * 7));
@@ -713,10 +708,8 @@ export default function MiniGamePage() {
           player.scale.lerp(scaleOne, 1 - Math.exp(-8 * delta));
         }
 
-        // Critical upright lock:
-        // Player root must never tilt on X/Z. Only Y-axis yaw is allowed.
-        player.rotation.x = 0;
-        player.rotation.z = 0;
+        // Critical upright lock: keep player on Y-axis yaw only.
+        player.rotation.set(0, playerYawRef.current, 0);
 
         coinsRef.current.forEach((coin) => {
           coin.rotation.y += delta * 4.5;
@@ -807,9 +800,7 @@ export default function MiniGamePage() {
 
       if (player) {
         // Final frame safety: keep character standing upright.
-        // Only Y-axis yaw is allowed. No X/Z tilt.
-        player.rotation.x = 0;
-        player.rotation.z = 0;
+        player.rotation.set(0, playerYawRef.current, 0);
 
         /*
           Stable adventure-game camera:
