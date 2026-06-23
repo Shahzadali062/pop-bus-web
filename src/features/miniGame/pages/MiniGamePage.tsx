@@ -24,19 +24,28 @@ type GameControl =
 type GameStatus = "waiting" | "playing" | "finished";
 
 const PUBLIC_WEB_URL =
-  typeof window !== "undefined" && window.location.hostname !== "localhost"
+  typeof window !== "undefined"
     ? window.location.origin
     : "https://pop-bus-web.vercel.app";
+
+/*
+  Soldier.glb ka forward axis movement vector se opposite ho sakta hai.
+  Agar face phir bhi opposite direction dekhe, is value ko Math.PI se 0 kar dena.
+*/
+const MODEL_YAW_OFFSET = Math.PI;
 
 function createRoomId() {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
 function randomPosition() {
+  const angle = Math.random() * Math.PI * 2;
+  const radius = 1.8 + Math.random() * 5.8;
+
   return new THREE.Vector3(
-    (Math.random() - 0.5) * 12,
+    Math.cos(angle) * radius,
     0.35,
-    (Math.random() - 0.5) * 12
+    Math.sin(angle) * radius
   );
 }
 
@@ -65,15 +74,26 @@ export default function MiniGamePage() {
   const playerRef = useRef<THREE.Group | null>(null);
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
   const actionsRef = useRef<Record<string, THREE.AnimationAction>>({});
-  const currentClipRef = useRef<string>("");
+  const currentClipRef = useRef("");
+
+  const velocityRef = useRef(new THREE.Vector3());
+  const targetVelocityRef = useRef(new THREE.Vector3());
+  const moveDirectionRef = useRef(new THREE.Vector3(0, 0, -1));
+  const targetQuaternionRef = useRef(new THREE.Quaternion());
+  const cameraTargetRef = useRef(new THREE.Vector3(0, 0.9, 0));
+
   const jumpVelocityRef = useRef(0);
+  const isGroundedRef = useRef(true);
   const boostUntilRef = useRef(0);
+  const hitUntilRef = useRef(0);
+  const hitCooldownRef = useRef(0);
+  const knockbackVelocityRef = useRef(new THREE.Vector3());
+
   const scoreRef = useRef(0);
   const timeLeftRef = useRef(60);
   const gameStatusRef = useRef<GameStatus>("waiting");
   const coinsRef = useRef<THREE.Mesh[]>([]);
   const obstaclesRef = useRef<THREE.Mesh[]>([]);
-  const hitCooldownRef = useRef(0);
 
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [controllerConnected, setControllerConnected] = useState(false);
@@ -85,19 +105,25 @@ export default function MiniGamePage() {
 
   const controllerUrl = `${PUBLIC_WEB_URL}/game-controller/${roomId}`;
 
-  const playClip = useCallback((clipKeyword: string) => {
+  const playClip = useCallback((clipKeyword: string, timeScale = 1) => {
     const clipNames = Object.keys(actionsRef.current);
     const matchedClip = findClipName(clipKeyword, clipNames);
 
-    if (!matchedClip || currentClipRef.current === matchedClip) {
+    if (!matchedClip) {
       return;
     }
 
     const nextAction = actionsRef.current[matchedClip];
+    nextAction.timeScale = timeScale;
+
+    if (currentClipRef.current === matchedClip) {
+      return;
+    }
+
     const currentAction = actionsRef.current[currentClipRef.current];
 
-    currentAction?.fadeOut(0.15);
-    nextAction.reset().fadeIn(0.15).play();
+    currentAction?.fadeOut(0.18);
+    nextAction.reset().fadeIn(0.18).play();
 
     currentClipRef.current = matchedClip;
   }, []);
@@ -106,6 +132,7 @@ export default function MiniGamePage() {
     scoreRef.current = 0;
     timeLeftRef.current = 60;
     gameStatusRef.current = "playing";
+
     setScore(0);
     setTimeLeft(60);
     setGameStatus("playing");
@@ -114,12 +141,20 @@ export default function MiniGamePage() {
     const player = playerRef.current;
     if (player) {
       player.position.set(0, 0, 0);
+      player.quaternion.identity();
       player.rotation.set(0, 0, 0);
       player.scale.setScalar(1);
     }
 
+    velocityRef.current.set(0, 0, 0);
+    targetVelocityRef.current.set(0, 0, 0);
+    knockbackVelocityRef.current.set(0, 0, 0);
+    moveDirectionRef.current.set(0, 0, -1);
     jumpVelocityRef.current = 0;
+    isGroundedRef.current = true;
     boostUntilRef.current = 0;
+    hitUntilRef.current = 0;
+    hitCooldownRef.current = 0;
 
     coinsRef.current.forEach((coin) => {
       coin.position.copy(randomPosition());
@@ -138,8 +173,10 @@ export default function MiniGamePage() {
       if (control === "right-down") pressedRef.current.right = true;
       if (control === "right-up") pressedRef.current.right = false;
 
-      if (control === "jump" && Math.abs(jumpVelocityRef.current) < 0.001) {
-        jumpVelocityRef.current = 5.2;
+      if (control === "jump" && isGroundedRef.current) {
+        jumpVelocityRef.current = 5.4;
+        isGroundedRef.current = false;
+        setMessage("Jump!");
       }
 
       if (control === "boost") {
@@ -229,7 +266,7 @@ export default function MiniGamePage() {
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x020617);
-    scene.fog = new THREE.Fog(0x020617, 10, 32);
+    scene.fog = new THREE.Fog(0x020617, 12, 34);
 
     const camera = new THREE.PerspectiveCamera(
       48,
@@ -237,7 +274,7 @@ export default function MiniGamePage() {
       0.1,
       100
     );
-    camera.position.set(0, 6, 9);
+    camera.position.set(0, 6.2, 9.8);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -312,11 +349,8 @@ export default function MiniGamePage() {
         new THREE.BoxGeometry(0.7, 0.7, 0.7),
         obstacleMaterial
       );
-      obstacle.position.set(
-        (Math.random() - 0.5) * 11,
-        0.35,
-        (Math.random() - 0.5) * 11
-      );
+      obstacle.position.copy(randomPosition());
+      obstacle.position.y = 0.35;
       scene.add(obstacle);
       obstacles.push(obstacle);
     }
@@ -328,6 +362,14 @@ export default function MiniGamePage() {
       (gltf) => {
         const model = gltf.scene;
 
+        model.traverse((child) => {
+          if ((child as THREE.Mesh).isMesh) {
+            const mesh = child as THREE.Mesh;
+            mesh.frustumCulled = false;
+            mesh.castShadow = true;
+          }
+        });
+
         const box = new THREE.Box3().setFromObject(model);
         const size = box.getSize(new THREE.Vector3());
         const maxAxis = Math.max(size.x, size.y, size.z) || 1;
@@ -335,6 +377,7 @@ export default function MiniGamePage() {
 
         const fittedBox = new THREE.Box3().setFromObject(model);
         const fittedCenter = fittedBox.getCenter(new THREE.Vector3());
+
         model.position.x -= fittedCenter.x;
         model.position.y -= fittedBox.min.y;
         model.position.z -= fittedCenter.z;
@@ -348,11 +391,12 @@ export default function MiniGamePage() {
         gltf.animations.forEach((clip) => {
           const action = mixer.clipAction(clip);
           action.loop = THREE.LoopRepeat;
+          action.enabled = true;
           actionMap[clip.name] = action;
         });
 
         actionsRef.current = actionMap;
-        playClip("idle");
+        playClip("idle", 1);
         resetGame();
       },
       undefined,
@@ -364,6 +408,13 @@ export default function MiniGamePage() {
     let frameId = 0;
     let lastUiUpdate = 0;
     const clock = new THREE.Clock();
+
+    const inputDirection = new THREE.Vector3();
+    const desiredVelocity = new THREE.Vector3();
+    const horizontalVelocity = new THREE.Vector3();
+    const cameraGoal = new THREE.Vector3();
+    const lookGoal = new THREE.Vector3();
+    const yAxis = new THREE.Vector3(0, 1, 0);
 
     const animate = () => {
       const delta = Math.min(clock.getDelta(), 0.04);
@@ -384,40 +435,78 @@ export default function MiniGamePage() {
 
       if (player && gameStatusRef.current === "playing") {
         const pressed = pressedRef.current;
-        const direction = new THREE.Vector3(0, 0, 0);
 
-        if (pressed.forward) direction.z -= 1;
-        if (pressed.back) direction.z += 1;
-        if (pressed.left) direction.x -= 1;
-        if (pressed.right) direction.x += 1;
+        inputDirection.set(0, 0, 0);
 
-        const isMoving = direction.lengthSq() > 0;
+        if (pressed.forward) inputDirection.z -= 1;
+        if (pressed.back) inputDirection.z += 1;
+        if (pressed.left) inputDirection.x -= 1;
+        if (pressed.right) inputDirection.x += 1;
+
+        const hasInput = inputDirection.lengthSq() > 0.001;
         const isBoosting = now < boostUntilRef.current;
-        const speed = isBoosting ? 5.2 : 2.8;
 
-        if (isMoving) {
-          direction.normalize();
-          player.position.x += direction.x * speed * delta;
-          player.position.z += direction.z * speed * delta;
-          player.rotation.y = Math.atan2(direction.x, direction.z);
-          playClip(isBoosting ? "run" : "walk");
-        } else {
-          playClip("idle");
+        if (hasInput) {
+          inputDirection.normalize();
+          moveDirectionRef.current.lerp(inputDirection, 1 - Math.exp(-16 * delta));
         }
 
-        player.position.x = THREE.MathUtils.clamp(player.position.x, -7.2, 7.2);
-        player.position.z = THREE.MathUtils.clamp(player.position.z, -7.2, 7.2);
+        const targetSpeed = hasInput ? (isBoosting ? 5.2 : 2.85) : 0;
 
-        jumpVelocityRef.current -= 12.8 * delta;
+        desiredVelocity.copy(inputDirection).multiplyScalar(targetSpeed);
+        targetVelocityRef.current.copy(desiredVelocity);
+
+        const response = hasInput ? 1 - Math.exp(-9.5 * delta) : 1 - Math.exp(-13 * delta);
+        velocityRef.current.lerp(targetVelocityRef.current, response);
+
+        horizontalVelocity.copy(velocityRef.current);
+        horizontalVelocity.y = 0;
+
+        if (horizontalVelocity.lengthSq() > 0.002) {
+          player.position.x += horizontalVelocity.x * delta;
+          player.position.z += horizontalVelocity.z * delta;
+
+          const actualMoveDir = horizontalVelocity.clone().normalize();
+          const targetYaw =
+            Math.atan2(actualMoveDir.x, actualMoveDir.z) + MODEL_YAW_OFFSET;
+
+          targetQuaternionRef.current.setFromAxisAngle(yAxis, targetYaw);
+
+          const turnAlpha = 1 - Math.exp(-10.5 * delta);
+          player.quaternion.slerp(targetQuaternionRef.current, turnAlpha);
+
+          playClip(isBoosting ? "run" : "walk", isBoosting ? 1.35 : 1);
+        } else {
+          playClip("idle", 1);
+        }
+
+        knockbackVelocityRef.current.multiplyScalar(1 - Math.min(1, delta * 7));
+        player.position.x += knockbackVelocityRef.current.x * delta;
+        player.position.z += knockbackVelocityRef.current.z * delta;
+
+        jumpVelocityRef.current -= 13.2 * delta;
         player.position.y += jumpVelocityRef.current * delta;
 
         if (player.position.y <= 0) {
           player.position.y = 0;
           jumpVelocityRef.current = 0;
+          isGroundedRef.current = true;
+        }
+
+        player.position.x = THREE.MathUtils.clamp(player.position.x, -7.2, 7.2);
+        player.position.z = THREE.MathUtils.clamp(player.position.z, -7.2, 7.2);
+
+        if (now < hitUntilRef.current) {
+          player.rotation.z = Math.sin(now * 0.035) * 0.11;
+          player.scale.setScalar(1.03);
+        } else {
+          player.rotation.z *= 1 - Math.min(1, delta * 9);
+          player.scale.lerp(new THREE.Vector3(1, 1, 1), 1 - Math.exp(-8 * delta));
         }
 
         coinsRef.current.forEach((coin) => {
           coin.rotation.y += delta * 4.2;
+
           if (coin.position.distanceTo(player.position) < 0.72) {
             scoreRef.current += 1;
             setScore(scoreRef.current);
@@ -428,26 +517,42 @@ export default function MiniGamePage() {
 
         obstaclesRef.current.forEach((obstacle) => {
           obstacle.rotation.y += delta * 1.1;
+
           if (
             now > hitCooldownRef.current &&
             obstacle.position.distanceTo(player.position) < 0.82
           ) {
             scoreRef.current = Math.max(0, scoreRef.current - 2);
             setScore(scoreRef.current);
-            hitCooldownRef.current = now + 1000;
-            player.position.multiplyScalar(0.86);
+
+            const away = player.position.clone().sub(obstacle.position);
+            away.y = 0;
+
+            if (away.lengthSq() < 0.001) {
+              away.set(0, 0, 1);
+            }
+
+            away.normalize();
+            knockbackVelocityRef.current.copy(away.multiplyScalar(3.4));
+
+            hitCooldownRef.current = now + 950;
+            hitUntilRef.current = now + 420;
+
             setMessage("Obstacle hit. -2 points.");
           }
         });
 
-        const targetCamera = new THREE.Vector3(
+        cameraGoal.set(
           player.position.x,
-          player.position.y + 5.2,
-          player.position.z + 8.3
+          player.position.y + 6.2,
+          player.position.z + 9.6
         );
 
-        camera.position.lerp(targetCamera, 0.055);
-        camera.lookAt(player.position.x, player.position.y + 0.9, player.position.z);
+        lookGoal.set(player.position.x, player.position.y + 0.95, player.position.z);
+
+        camera.position.lerp(cameraGoal, 1 - Math.exp(-4.2 * delta));
+        cameraTargetRef.current.lerp(lookGoal, 1 - Math.exp(-7.2 * delta));
+        camera.lookAt(cameraTargetRef.current);
       }
 
       if (now - lastUiUpdate > 180) {
@@ -511,7 +616,11 @@ export default function MiniGamePage() {
 
           <strong className="mini-game-room">{roomId}</strong>
 
-          <button type="button" className="mini-game-copy" onClick={copyControllerLink}>
+          <button
+            type="button"
+            className="mini-game-copy"
+            onClick={() => void copyControllerLink()}
+          >
             <Copy size={18} />
             Copy Controller Link
           </button>
