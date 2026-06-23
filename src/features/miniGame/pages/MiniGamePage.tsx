@@ -68,6 +68,7 @@ export default function MiniGamePage() {
   const currentClipRef = useRef("");
 
   const velocityRef = useRef(new THREE.Vector3());
+  const currentSpeedRef = useRef(0);
   const moveDirectionRef = useRef(new THREE.Vector3(0, 0, -1));
   const targetQuaternionRef = useRef(new THREE.Quaternion());
   const cameraTargetRef = useRef(new THREE.Vector3(0, 0.9, 0));
@@ -177,6 +178,7 @@ export default function MiniGamePage() {
 
     joystickRef.current = { x: 0, y: 0, magnitude: 0 };
     velocityRef.current.set(0, 0, 0);
+    currentSpeedRef.current = 0;
     knockbackVelocityRef.current.set(0, 0, 0);
     moveDirectionRef.current.set(0, 0, -1);
     jumpVelocityRef.current = 0;
@@ -497,8 +499,6 @@ export default function MiniGamePage() {
     const clock = new THREE.Clock();
 
     const inputDirection = new THREE.Vector3();
-    const desiredVelocity = new THREE.Vector3();
-    const horizontalVelocity = new THREE.Vector3();
     const cameraGoal = new THREE.Vector3();
     const lookGoal = new THREE.Vector3();
     const yAxis = new THREE.Vector3(0, 1, 0);
@@ -526,66 +526,115 @@ export default function MiniGamePage() {
       if (player && status === "playing") {
         const joystick = joystickRef.current;
 
-        const deadZone = 0.14;
-        const inputPower =
-          joystick.magnitude < deadZone
-            ? 0
-            : Math.min(1, (joystick.magnitude - deadZone) / (1 - deadZone));
-
         /*
-          Stable world-space joystick mapping:
-          - joystick.x controls left/right on world X.
-          - joystick.y controls forward/back on world Z.
-          - Camera is NOT used to calculate movement, so camera/world will not spin.
+          Professional movement sync:
+          - Joystick gives target direction only.
+          - Character turns toward target direction.
+          - Movement follows character facing direction, not raw joystick sliding.
+          - Fast joystick = faster turn + controlled run speed.
         */
+        const deadZone = 0.16;
+        const rawMagnitude = Math.min(
+          1,
+          Math.sqrt(joystick.x * joystick.x + joystick.y * joystick.y)
+        );
+
+        const inputPower =
+          rawMagnitude < deadZone
+            ? 0
+            : Math.min(1, (rawMagnitude - deadZone) / (1 - deadZone));
+
         inputDirection.set(joystick.x, 0, joystick.y);
 
-        const hasInput = inputPower > 0.02 && inputDirection.lengthSq() > 0.001;
+        const hasInput = inputPower > 0.025 && inputDirection.lengthSq() > 0.001;
         const isBoosting = now < boostUntilRef.current;
 
         if (hasInput) {
           inputDirection.normalize();
-          moveDirectionRef.current.lerp(inputDirection, 1 - Math.exp(-14 * delta));
-        } else {
-          inputDirection.set(0, 0, 0);
-        }
 
-        const targetSpeed = hasInput
-          ? (isBoosting ? 5.2 : 1.9 + inputPower * 1.65)
-          : 0;
-
-        desiredVelocity
-          .copy(inputDirection)
-          .multiplyScalar(targetSpeed * inputPower);
-
-        const acceleration = hasInput ? 1 - Math.exp(-9.8 * delta) : 1 - Math.exp(-13.5 * delta);
-        velocityRef.current.lerp(desiredVelocity, acceleration);
-
-        horizontalVelocity.copy(velocityRef.current);
-        horizontalVelocity.y = 0;
-
-        if (horizontalVelocity.lengthSq() > 0.002) {
-          player.position.x += horizontalVelocity.x * delta;
-          player.position.z += horizontalVelocity.z * delta;
-
-          const actualMoveDir = horizontalVelocity.clone().normalize();
           const targetYaw =
-            Math.atan2(actualMoveDir.x, actualMoveDir.z) + MODEL_YAW_OFFSET;
+            Math.atan2(inputDirection.x, inputDirection.z) + MODEL_YAW_OFFSET;
 
           targetQuaternionRef.current.setFromAxisAngle(yAxis, targetYaw);
 
-          const turnAlpha = 1 - Math.exp(-10.8 * delta);
+          // Slow joystick = soft turn, full joystick/run = faster controlled turn.
+          const turnRate = THREE.MathUtils.lerp(10.5, 23.5, inputPower) +
+            (isBoosting ? 3.5 : 0);
+
+          const turnAlpha = 1 - Math.exp(-turnRate * delta);
           player.quaternion.slerp(targetQuaternionRef.current, turnAlpha);
 
-          const speedRatio = Math.min(1, horizontalVelocity.length() / 5.7);
+          // Critical: upright lock after quaternion turn.
+          player.rotation.x = 0;
+          player.rotation.z = 0;
+
+          /*
+            Movement follows the character's visual facing direction.
+            MODEL_YAW_OFFSET is subtracted so movement matches the model face.
+          */
+          const facingYaw = player.rotation.y - MODEL_YAW_OFFSET;
+          const facingDirection = new THREE.Vector3(
+            Math.sin(facingYaw),
+            0,
+            Math.cos(facingYaw)
+          ).normalize();
+
+          moveDirectionRef.current.lerp(facingDirection, 1 - Math.exp(-18 * delta));
+
+          // Max speed intentionally controlled so animation and turning stay synced.
+          const walkSpeed = 1.15;
+          const runSpeed = 3.45;
+          const boostSpeed = 4.25;
+
+          const targetSpeed = isBoosting
+            ? boostSpeed
+            : THREE.MathUtils.lerp(walkSpeed, runSpeed, inputPower);
+
+          const accelRate = isBoosting ? 8.5 : 7.2;
+          currentSpeedRef.current +=
+            (targetSpeed - currentSpeedRef.current) *
+            (1 - Math.exp(-accelRate * delta));
+
+          velocityRef.current.copy(facingDirection).multiplyScalar(currentSpeedRef.current);
+
+          player.position.x += velocityRef.current.x * delta;
+          player.position.z += velocityRef.current.z * delta;
+
+          const speedRatio = Math.min(1, currentSpeedRef.current / runSpeed);
 
           if (speedRatio > 0.72) {
-            playClip("run", isBoosting ? 1.45 : 1.1);
+            playClip("run", isBoosting ? 1.28 : 1.08);
           } else {
-            playClip("walk", THREE.MathUtils.lerp(0.8, 1.25, speedRatio));
+            playClip("walk", THREE.MathUtils.lerp(0.82, 1.12, speedRatio));
           }
         } else {
-          playClip("idle", 1);
+          // Smooth deceleration. No sudden stop, no skating.
+          currentSpeedRef.current +=
+            (0 - currentSpeedRef.current) *
+            (1 - Math.exp(-12.5 * delta));
+
+          if (currentSpeedRef.current > 0.05) {
+            const facingYaw = player.rotation.y - MODEL_YAW_OFFSET;
+            const facingDirection = new THREE.Vector3(
+              Math.sin(facingYaw),
+              0,
+              Math.cos(facingYaw)
+            ).normalize();
+
+            velocityRef.current.copy(facingDirection).multiplyScalar(currentSpeedRef.current);
+
+            player.position.x += velocityRef.current.x * delta;
+            player.position.z += velocityRef.current.z * delta;
+
+            playClip("walk", 0.75);
+          } else {
+            currentSpeedRef.current = 0;
+            velocityRef.current.set(0, 0, 0);
+            playClip("idle", 1);
+          }
+
+          player.rotation.x = 0;
+          player.rotation.z = 0;
         }
 
         knockbackVelocityRef.current.multiplyScalar(1 - Math.min(1, delta * 7));
@@ -890,4 +939,5 @@ export default function MiniGamePage() {
     </main>
   );
 }
+
 
