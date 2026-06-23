@@ -1,5 +1,13 @@
 ﻿import { useEffect, useRef, useState } from "react";
-import { Activity, Gamepad2, RotateCcw, Zap } from "lucide-react";
+import {
+  Activity,
+  Gamepad2,
+  Pause,
+  Play,
+  RotateCcw,
+  Rocket,
+  Zap,
+} from "lucide-react";
 import { io, type Socket } from "socket.io-client";
 import { useParams } from "react-router-dom";
 
@@ -7,21 +15,25 @@ import { SERVER_URL } from "../../../shared/config/server";
 import "./MiniGameControllerPage.css";
 
 type GameControl =
-  | "forward-down"
-  | "forward-up"
-  | "back-down"
-  | "back-up"
-  | "left-down"
-  | "left-up"
-  | "right-down"
-  | "right-up"
   | "jump"
   | "boost"
-  | "restart";
+  | "restart"
+  | "pause"
+  | "resume"
+  | "start";
+
+type JoystickVector = {
+  x: number;
+  y: number;
+};
+
+const KNOB_LIMIT = 52;
 
 export default function MiniGameControllerPage() {
   const { roomId = "" } = useParams();
   const socketRef = useRef<Socket | null>(null);
+  const joystickBaseRef = useRef<HTMLDivElement | null>(null);
+  const joystickVectorRef = useRef<JoystickVector>({ x: 0, y: 0 });
 
   const cleanRoomId = roomId
     .trim()
@@ -29,7 +41,9 @@ export default function MiniGameControllerPage() {
     .replace(/[^A-Z0-9-]/g, "");
 
   const [socketStatus, setSocketStatus] = useState("Connecting");
-  const [message, setMessage] = useState("Hold direction buttons to move.");
+  const [message, setMessage] = useState("Use joystick to move.");
+  const [knob, setKnob] = useState({ x: 0, y: 0 });
+  const [isPaused, setIsPaused] = useState(false);
 
   useEffect(() => {
     if (!cleanRoomId) {
@@ -71,6 +85,23 @@ export default function MiniGameControllerPage() {
     };
   }, [cleanRoomId]);
 
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      const vector = joystickVectorRef.current;
+
+      if (
+        socketRef.current?.connected &&
+        (Math.abs(vector.x) > 0.01 || Math.abs(vector.y) > 0.01)
+      ) {
+        sendJoystick(vector.x, vector.y);
+      }
+    }, 70);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, []);
+
   function sendControl(control: GameControl) {
     if (!socketRef.current?.connected) {
       setMessage("Controller is not connected yet.");
@@ -91,91 +122,193 @@ export default function MiniGameControllerPage() {
     );
   }
 
-  function holdButton(label: string, down: GameControl, up: GameControl) {
-    return (
-      <button
-        type="button"
-        className="game-control-button"
-        onPointerDown={(event) => {
-          event.currentTarget.setPointerCapture(event.pointerId);
-          sendControl(down);
-        }}
-        onPointerUp={() => sendControl(up)}
-        onPointerCancel={() => sendControl(up)}
-        onPointerLeave={() => sendControl(up)}
-      >
-        {label}
-      </button>
-    );
+  function sendJoystick(x: number, y: number) {
+    socketRef.current?.emit("game:joystick-command", {
+      roomId: cleanRoomId,
+      x,
+      y,
+    });
+  }
+
+  function updateJoystickFromPointer(clientX: number, clientY: number) {
+    const base = joystickBaseRef.current;
+
+    if (!base) {
+      return;
+    }
+
+    const rect = base.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+
+    let dx = clientX - centerX;
+    let dy = clientY - centerY;
+
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance > KNOB_LIMIT) {
+      dx = (dx / distance) * KNOB_LIMIT;
+      dy = (dy / distance) * KNOB_LIMIT;
+    }
+
+    const normalizedX = dx / KNOB_LIMIT;
+    const normalizedY = dy / KNOB_LIMIT;
+
+    joystickVectorRef.current = {
+      x: normalizedX,
+      y: normalizedY,
+    };
+
+    setKnob({ x: dx, y: dy });
+    sendJoystick(normalizedX, normalizedY);
+  }
+
+  function resetJoystick() {
+    joystickVectorRef.current = { x: 0, y: 0 };
+    setKnob({ x: 0, y: 0 });
+    sendJoystick(0, 0);
+  }
+
+  function togglePause() {
+    if (isPaused) {
+      sendControl("resume");
+      setIsPaused(false);
+      setMessage("Game resumed.");
+    } else {
+      sendControl("pause");
+      setIsPaused(true);
+      setMessage("Game paused.");
+    }
   }
 
   return (
     <main className="game-controller-page">
-      <section className="game-controller-card">
-        <div className="game-controller-header">
-          <div className="game-controller-icon">
-            <Gamepad2 size={25} />
+      <section className="game-controller-shell">
+        <header className="game-controller-topbar">
+          <div className="game-controller-title">
+            <div className="game-controller-icon">
+              <Gamepad2 size={24} />
+            </div>
+
+            <div>
+              <span>Mobile Controller</span>
+              <h1>Coin Runner</h1>
+            </div>
           </div>
 
-          <div>
-            <span>Mobile Controller</span>
-            <h1>Coin Collector</h1>
+          <div className="game-controller-pill">
+            {socketStatus}
           </div>
-        </div>
+        </header>
 
-        <div className="game-controller-status">
-          <div>
-            <small>Room</small>
-            <strong>{cleanRoomId || "Missing"}</strong>
-          </div>
+        <section className="game-controller-room">
+          <small>Room</small>
+          <strong>{cleanRoomId || "Missing"}</strong>
+        </section>
 
-          <div>
-            <small>Status</small>
-            <strong>{socketStatus}</strong>
-          </div>
-        </div>
-
-        <div className="game-dpad">
-          <span />
-          {holdButton("Forward", "forward-down", "forward-up")}
-          <span />
-
-          {holdButton("Left", "left-down", "left-up")}
-          {holdButton("Back", "back-down", "back-up")}
-          {holdButton("Right", "right-down", "right-up")}
-        </div>
-
-        <div className="game-action-grid">
+        <section className="game-controller-playbar">
           <button
             type="button"
-            className="game-action-button"
-            onClick={() => sendControl("jump")}
+            className="game-primary-button"
+            onClick={() => {
+              sendControl("start");
+              setIsPaused(false);
+              setMessage("Game started.");
+            }}
           >
-            <Activity size={22} />
-            Jump
+            <Play size={20} />
+            Start
           </button>
 
           <button
             type="button"
-            className="game-action-button"
-            onClick={() => sendControl("boost")}
+            className="game-secondary-button"
+            onClick={togglePause}
           >
-            <Zap size={22} />
-            Boost
+            {isPaused ? <Play size={20} /> : <Pause size={20} />}
+            {isPaused ? "Resume" : "Pause"}
           </button>
 
           <button
             type="button"
-            className="game-action-button restart"
-            onClick={() => sendControl("restart")}
+            className="game-secondary-button danger"
+            onClick={() => {
+              sendControl("restart");
+              setIsPaused(false);
+              setMessage("Game restarted.");
+            }}
           >
-            <RotateCcw size={22} />
+            <RotateCcw size={20} />
             Restart
           </button>
-        </div>
+        </section>
+
+        <section className="game-controller-main">
+          <div className="joystick-zone">
+            <div
+              ref={joystickBaseRef}
+              className="virtual-joystick"
+              onPointerDown={(event) => {
+                event.currentTarget.setPointerCapture(event.pointerId);
+                updateJoystickFromPointer(event.clientX, event.clientY);
+              }}
+              onPointerMove={(event) => {
+                if (event.buttons > 0) {
+                  updateJoystickFromPointer(event.clientX, event.clientY);
+                }
+              }}
+              onPointerUp={resetJoystick}
+              onPointerCancel={resetJoystick}
+              onPointerLeave={(event) => {
+                if (event.buttons > 0) {
+                  resetJoystick();
+                }
+              }}
+            >
+              <div className="joystick-rings" />
+              <div
+                className="joystick-knob"
+                style={{
+                  transform: `translate(${knob.x}px, ${knob.y}px)`,
+                }}
+              >
+                <Rocket size={24} />
+              </div>
+            </div>
+
+            <p>Move</p>
+          </div>
+
+          <div className="game-action-column">
+            <button
+              type="button"
+              className="game-big-action"
+              onClick={() => {
+                sendControl("jump");
+                setMessage("Jump!");
+              }}
+            >
+              <Activity size={24} />
+              Jump
+            </button>
+
+            <button
+              type="button"
+              className="game-big-action boost"
+              onClick={() => {
+                sendControl("boost");
+                setMessage("Speed boost activated.");
+              }}
+            >
+              <Zap size={24} />
+              Boost
+            </button>
+          </div>
+        </section>
 
         <p className="game-controller-message">{message}</p>
       </section>
     </main>
   );
 }
+

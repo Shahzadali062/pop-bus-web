@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useRef, useState } from "react";
-import { Copy, QrCode, Trophy } from "lucide-react";
+import { Copy, Heart, Pause, QrCode, Shield, Trophy, Zap } from "lucide-react";
 import { io, type Socket } from "socket.io-client";
 import QRCode from "qrcode";
 import * as THREE from "three";
@@ -8,30 +8,22 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { SERVER_URL } from "../../../shared/config/server";
 import "./MiniGamePage.css";
 
-type GameControl =
-  | "forward-down"
-  | "forward-up"
-  | "back-down"
-  | "back-up"
-  | "left-down"
-  | "left-up"
-  | "right-down"
-  | "right-up"
-  | "jump"
-  | "boost"
-  | "restart";
+type GameControl = "jump" | "boost" | "restart" | "pause" | "resume" | "start";
 
-type GameStatus = "waiting" | "playing" | "finished";
+type GameStatus = "waiting" | "ready" | "playing" | "paused" | "finished";
+
+type CollectEffect = {
+  mesh: THREE.Mesh;
+  velocity: THREE.Vector3;
+  life: number;
+  maxLife: number;
+};
 
 const PUBLIC_WEB_URL =
   typeof window !== "undefined"
     ? window.location.origin
     : "https://pop-bus-web.vercel.app";
 
-/*
-  Soldier.glb ka forward axis movement vector se opposite ho sakta hai.
-  Agar face phir bhi opposite direction dekhe, is value ko Math.PI se 0 kar dena.
-*/
 const MODEL_YAW_OFFSET = Math.PI;
 
 function createRoomId() {
@@ -64,11 +56,10 @@ export default function MiniGamePage() {
   const roomIdRef = useRef(createRoomId());
   const roomId = roomIdRef.current;
 
-  const pressedRef = useRef({
-    forward: false,
-    back: false,
-    left: false,
-    right: false,
+  const joystickRef = useRef({
+    x: 0,
+    y: 0,
+    magnitude: 0,
   });
 
   const playerRef = useRef<THREE.Group | null>(null);
@@ -77,7 +68,6 @@ export default function MiniGamePage() {
   const currentClipRef = useRef("");
 
   const velocityRef = useRef(new THREE.Vector3());
-  const targetVelocityRef = useRef(new THREE.Vector3());
   const moveDirectionRef = useRef(new THREE.Vector3(0, 0, -1));
   const targetQuaternionRef = useRef(new THREE.Quaternion());
   const cameraTargetRef = useRef(new THREE.Vector3(0, 0.9, 0));
@@ -88,20 +78,28 @@ export default function MiniGamePage() {
   const hitUntilRef = useRef(0);
   const hitCooldownRef = useRef(0);
   const knockbackVelocityRef = useRef(new THREE.Vector3());
+  const screenShakeRef = useRef(0);
 
   const scoreRef = useRef(0);
-  const timeLeftRef = useRef(60);
+  const livesRef = useRef(3);
+  const levelRef = useRef(1);
+  const timeLeftRef = useRef(75);
   const gameStatusRef = useRef<GameStatus>("waiting");
+
   const coinsRef = useRef<THREE.Mesh[]>([]);
   const obstaclesRef = useRef<THREE.Mesh[]>([]);
+  const effectsRef = useRef<CollectEffect[]>([]);
 
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [controllerConnected, setControllerConnected] = useState(false);
   const [socketStatus, setSocketStatus] = useState("Connecting");
   const [gameStatus, setGameStatus] = useState<GameStatus>("waiting");
   const [score, setScore] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(60);
+  const [lives, setLives] = useState(3);
+  const [level, setLevel] = useState(1);
+  const [timeLeft, setTimeLeft] = useState(75);
   const [message, setMessage] = useState("Scan QR with mobile to start.");
+  const [hitFlash, setHitFlash] = useState(false);
 
   const controllerUrl = `${PUBLIC_WEB_URL}/game-controller/${roomId}`;
 
@@ -128,15 +126,46 @@ export default function MiniGamePage() {
     currentClipRef.current = matchedClip;
   }, []);
 
+  const createCollectEffect = useCallback((scene: THREE.Scene, position: THREE.Vector3) => {
+    const material = new THREE.MeshBasicMaterial({
+      color: 0x67e8f9,
+      transparent: true,
+      opacity: 0.95,
+    });
+
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 12), material);
+    mesh.position.copy(position);
+    scene.add(mesh);
+
+    effectsRef.current.push({
+      mesh,
+      velocity: new THREE.Vector3(
+        (Math.random() - 0.5) * 1.2,
+        1.2 + Math.random() * 0.6,
+        (Math.random() - 0.5) * 1.2
+      ),
+      life: 0.48,
+      maxLife: 0.48,
+    });
+  }, []);
+
+  const setStatus = useCallback((status: GameStatus) => {
+    gameStatusRef.current = status;
+    setGameStatus(status);
+  }, []);
+
   const resetGame = useCallback(() => {
     scoreRef.current = 0;
-    timeLeftRef.current = 60;
-    gameStatusRef.current = "playing";
+    livesRef.current = 3;
+    levelRef.current = 1;
+    timeLeftRef.current = 75;
 
     setScore(0);
-    setTimeLeft(60);
-    setGameStatus("playing");
-    setMessage("Collect coins before time runs out.");
+    setLives(3);
+    setLevel(1);
+    setTimeLeft(75);
+    setStatus("playing");
+    setMessage("Collect neon rings and avoid red obstacles.");
 
     const player = playerRef.current;
     if (player) {
@@ -146,8 +175,8 @@ export default function MiniGamePage() {
       player.scale.setScalar(1);
     }
 
+    joystickRef.current = { x: 0, y: 0, magnitude: 0 };
     velocityRef.current.set(0, 0, 0);
-    targetVelocityRef.current.set(0, 0, 0);
     knockbackVelocityRef.current.set(0, 0, 0);
     moveDirectionRef.current.set(0, 0, -1);
     jumpVelocityRef.current = 0;
@@ -155,40 +184,54 @@ export default function MiniGamePage() {
     boostUntilRef.current = 0;
     hitUntilRef.current = 0;
     hitCooldownRef.current = 0;
+    screenShakeRef.current = 0;
 
     coinsRef.current.forEach((coin) => {
       coin.position.copy(randomPosition());
       coin.visible = true;
     });
-  }, []);
+
+    obstaclesRef.current.forEach((obstacle) => {
+      obstacle.position.copy(randomPosition());
+      obstacle.position.y = 0.35;
+    });
+  }, [setStatus]);
 
   const handleControl = useCallback(
     (control: GameControl) => {
-      if (control === "forward-down") pressedRef.current.forward = true;
-      if (control === "forward-up") pressedRef.current.forward = false;
-      if (control === "back-down") pressedRef.current.back = true;
-      if (control === "back-up") pressedRef.current.back = false;
-      if (control === "left-down") pressedRef.current.left = true;
-      if (control === "left-up") pressedRef.current.left = false;
-      if (control === "right-down") pressedRef.current.right = true;
-      if (control === "right-up") pressedRef.current.right = false;
+      if (control === "start" || control === "restart") {
+        resetGame();
+        return;
+      }
+
+      if (control === "pause" && gameStatusRef.current === "playing") {
+        setStatus("paused");
+        setMessage("Game paused.");
+        return;
+      }
+
+      if (control === "resume" && gameStatusRef.current === "paused") {
+        setStatus("playing");
+        setMessage("Game resumed.");
+        return;
+      }
+
+      if (gameStatusRef.current !== "playing") {
+        return;
+      }
 
       if (control === "jump" && isGroundedRef.current) {
-        jumpVelocityRef.current = 5.4;
+        jumpVelocityRef.current = 5.6;
         isGroundedRef.current = false;
         setMessage("Jump!");
       }
 
       if (control === "boost") {
-        boostUntilRef.current = Date.now() + 2200;
+        boostUntilRef.current = Date.now() + 2300;
         setMessage("Speed boost activated.");
       }
-
-      if (control === "restart") {
-        resetGame();
-      }
     },
-    [resetGame]
+    [resetGame, setStatus]
   );
 
   useEffect(() => {
@@ -233,14 +276,26 @@ export default function MiniGamePage() {
     socket.on("game:peer-joined", (payload: { role?: string }) => {
       if (payload?.role === "controller") {
         setControllerConnected(true);
-        setMessage("Mobile connected. Game loading...");
+        setMessage("Mobile connected. Loading arena...");
       }
     });
 
     socket.on("game:peer-left", (payload: { role?: string }) => {
       if (payload?.role === "controller") {
+        joystickRef.current = { x: 0, y: 0, magnitude: 0 };
         setMessage("Mobile disconnected. Scan QR again if needed.");
       }
+    });
+
+    socket.on("game:joystick-command", (payload: { x?: number; y?: number; magnitude?: number }) => {
+      const x = typeof payload.x === "number" ? THREE.MathUtils.clamp(payload.x, -1, 1) : 0;
+      const y = typeof payload.y === "number" ? THREE.MathUtils.clamp(payload.y, -1, 1) : 0;
+
+      joystickRef.current = {
+        x,
+        y,
+        magnitude: Math.min(1, Math.sqrt(x * x + y * y)),
+      };
     });
 
     socket.on(
@@ -266,7 +321,7 @@ export default function MiniGamePage() {
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x020617);
-    scene.fog = new THREE.Fog(0x020617, 12, 34);
+    scene.fog = new THREE.Fog(0x020617, 12, 36);
 
     const camera = new THREE.PerspectiveCamera(
       48,
@@ -274,19 +329,26 @@ export default function MiniGamePage() {
       0.1,
       100
     );
-    camera.position.set(0, 6.2, 9.8);
+    camera.position.set(0, 6.4, 9.8);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      powerPreference: "high-performance",
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.7));
     renderer.setSize(host.clientWidth, host.clientHeight);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     host.appendChild(renderer.domElement);
 
     scene.add(new THREE.HemisphereLight(0xffffff, 0x334155, 2.4));
 
-    const keyLight = new THREE.DirectionalLight(0xffffff, 3.2);
+    const keyLight = new THREE.DirectionalLight(0xffffff, 3.4);
     keyLight.position.set(6, 8, 5);
     scene.add(keyLight);
+
+    const rimLight = new THREE.DirectionalLight(0x22d3ee, 1.4);
+    rimLight.position.set(-5, 3, -4);
+    scene.add(rimLight);
 
     const ground = new THREE.Mesh(
       new THREE.CircleGeometry(9, 96),
@@ -311,26 +373,47 @@ export default function MiniGamePage() {
     ring.position.y = 0.01;
     scene.add(ring);
 
+    const grid = new THREE.GridHelper(18, 24, 0x22d3ee, 0x1e293b);
+    grid.position.y = 0.015;
+    scene.add(grid);
+
+    const pillarMaterial = new THREE.MeshBasicMaterial({
+      color: 0x2563eb,
+      transparent: true,
+      opacity: 0.55,
+    });
+
+    for (let i = 0; i < 18; i += 1) {
+      const angle = (i / 18) * Math.PI * 2;
+      const pillar = new THREE.Mesh(
+        new THREE.BoxGeometry(0.08, 0.7 + Math.random() * 0.8, 0.08),
+        pillarMaterial
+      );
+      pillar.position.set(Math.cos(angle) * 8.3, 0.35, Math.sin(angle) * 8.3);
+      scene.add(pillar);
+    }
+
     const playerRoot = new THREE.Group();
     scene.add(playerRoot);
     playerRef.current = playerRoot;
 
     const coinMaterial = new THREE.MeshStandardMaterial({
       color: 0xfacc15,
-      roughness: 0.3,
-      metalness: 0.55,
-      emissive: 0x713f12,
-      emissiveIntensity: 0.35,
+      roughness: 0.25,
+      metalness: 0.65,
+      emissive: 0xf59e0b,
+      emissiveIntensity: 0.45,
     });
 
     const coins: THREE.Mesh[] = [];
-    for (let i = 0; i < 10; i += 1) {
+    for (let i = 0; i < 12; i += 1) {
       const coin = new THREE.Mesh(
         new THREE.TorusGeometry(0.22, 0.07, 12, 28),
         coinMaterial
       );
       coin.position.copy(randomPosition());
       coin.rotation.x = Math.PI / 2;
+      coin.userData.pulse = Math.random() * Math.PI * 2;
       scene.add(coin);
       coins.push(coin);
     }
@@ -339,14 +422,14 @@ export default function MiniGamePage() {
     const obstacleMaterial = new THREE.MeshStandardMaterial({
       color: 0xef4444,
       emissive: 0x7f1d1d,
-      emissiveIntensity: 0.25,
+      emissiveIntensity: 0.35,
       roughness: 0.55,
     });
 
     const obstacles: THREE.Mesh[] = [];
-    for (let i = 0; i < 5; i += 1) {
+    for (let i = 0; i < 6; i += 1) {
       const obstacle = new THREE.Mesh(
-        new THREE.BoxGeometry(0.7, 0.7, 0.7),
+        new THREE.BoxGeometry(0.72, 0.72, 0.72),
         obstacleMaterial
       );
       obstacle.position.copy(randomPosition());
@@ -397,7 +480,11 @@ export default function MiniGamePage() {
 
         actionsRef.current = actionMap;
         playClip("idle", 1);
-        resetGame();
+
+        if (gameStatusRef.current === "waiting") {
+          setStatus("ready");
+          setMessage("Press Start on mobile controller.");
+        }
       },
       undefined,
       () => {
@@ -415,35 +502,33 @@ export default function MiniGamePage() {
     const cameraGoal = new THREE.Vector3();
     const lookGoal = new THREE.Vector3();
     const yAxis = new THREE.Vector3(0, 1, 0);
+    const scaleOne = new THREE.Vector3(1, 1, 1);
 
     const animate = () => {
       const delta = Math.min(clock.getDelta(), 0.04);
       const now = Date.now();
       const player = playerRef.current;
+      const status = gameStatusRef.current;
 
-      mixerRef.current?.update(delta);
+      if (status !== "paused" && status !== "finished") {
+        mixerRef.current?.update(delta);
+      }
 
-      if (gameStatusRef.current === "playing") {
+      if (status === "playing") {
         timeLeftRef.current = Math.max(0, timeLeftRef.current - delta);
 
         if (timeLeftRef.current <= 0) {
-          gameStatusRef.current = "finished";
-          setGameStatus("finished");
-          setMessage(`Game over. Final score: ${scoreRef.current}`);
+          setStatus("finished");
+          setMessage(`Mission complete. Final score: ${scoreRef.current}`);
         }
       }
 
-      if (player && gameStatusRef.current === "playing") {
-        const pressed = pressedRef.current;
+      if (player && status === "playing") {
+        const joystick = joystickRef.current;
 
-        inputDirection.set(0, 0, 0);
+        inputDirection.set(joystick.x, 0, joystick.y);
 
-        if (pressed.forward) inputDirection.z -= 1;
-        if (pressed.back) inputDirection.z += 1;
-        if (pressed.left) inputDirection.x -= 1;
-        if (pressed.right) inputDirection.x += 1;
-
-        const hasInput = inputDirection.lengthSq() > 0.001;
+        const hasInput = inputDirection.lengthSq() > 0.01;
         const isBoosting = now < boostUntilRef.current;
 
         if (hasInput) {
@@ -451,13 +536,16 @@ export default function MiniGamePage() {
           moveDirectionRef.current.lerp(inputDirection, 1 - Math.exp(-16 * delta));
         }
 
-        const targetSpeed = hasInput ? (isBoosting ? 5.2 : 2.85) : 0;
+        const targetSpeed = hasInput
+          ? (isBoosting ? 5.7 : 2.1 + joystick.magnitude * 1.75)
+          : 0;
 
-        desiredVelocity.copy(inputDirection).multiplyScalar(targetSpeed);
-        targetVelocityRef.current.copy(desiredVelocity);
+        desiredVelocity
+          .copy(inputDirection)
+          .multiplyScalar(targetSpeed * joystick.magnitude);
 
-        const response = hasInput ? 1 - Math.exp(-9.5 * delta) : 1 - Math.exp(-13 * delta);
-        velocityRef.current.lerp(targetVelocityRef.current, response);
+        const acceleration = hasInput ? 1 - Math.exp(-9.8 * delta) : 1 - Math.exp(-13.5 * delta);
+        velocityRef.current.lerp(desiredVelocity, acceleration);
 
         horizontalVelocity.copy(velocityRef.current);
         horizontalVelocity.y = 0;
@@ -472,10 +560,16 @@ export default function MiniGamePage() {
 
           targetQuaternionRef.current.setFromAxisAngle(yAxis, targetYaw);
 
-          const turnAlpha = 1 - Math.exp(-10.5 * delta);
+          const turnAlpha = 1 - Math.exp(-10.8 * delta);
           player.quaternion.slerp(targetQuaternionRef.current, turnAlpha);
 
-          playClip(isBoosting ? "run" : "walk", isBoosting ? 1.35 : 1);
+          const speedRatio = Math.min(1, horizontalVelocity.length() / 5.7);
+
+          if (speedRatio > 0.72) {
+            playClip("run", isBoosting ? 1.45 : 1.1);
+          } else {
+            playClip("walk", THREE.MathUtils.lerp(0.8, 1.25, speedRatio));
+          }
         } else {
           playClip("idle", 1);
         }
@@ -484,7 +578,7 @@ export default function MiniGamePage() {
         player.position.x += knockbackVelocityRef.current.x * delta;
         player.position.z += knockbackVelocityRef.current.z * delta;
 
-        jumpVelocityRef.current -= 13.2 * delta;
+        jumpVelocityRef.current -= 13.4 * delta;
         player.position.y += jumpVelocityRef.current * delta;
 
         if (player.position.y <= 0) {
@@ -497,33 +591,46 @@ export default function MiniGamePage() {
         player.position.z = THREE.MathUtils.clamp(player.position.z, -7.2, 7.2);
 
         if (now < hitUntilRef.current) {
-          player.rotation.z = Math.sin(now * 0.035) * 0.11;
-          player.scale.setScalar(1.03);
+          player.rotation.z = Math.sin(now * 0.04) * 0.12;
+          player.scale.setScalar(1.035);
         } else {
           player.rotation.z *= 1 - Math.min(1, delta * 9);
-          player.scale.lerp(new THREE.Vector3(1, 1, 1), 1 - Math.exp(-8 * delta));
+          player.scale.lerp(scaleOne, 1 - Math.exp(-8 * delta));
         }
 
         coinsRef.current.forEach((coin) => {
-          coin.rotation.y += delta * 4.2;
+          coin.rotation.y += delta * 4.5;
+          coin.position.y = 0.35 + Math.sin(now * 0.004 + coin.userData.pulse) * 0.08;
 
           if (coin.position.distanceTo(player.position) < 0.72) {
             scoreRef.current += 1;
             setScore(scoreRef.current);
+            createCollectEffect(scene, coin.position.clone());
+
+            const nextLevel = Math.min(9, Math.floor(scoreRef.current / 6) + 1);
+
+            if (nextLevel !== levelRef.current) {
+              levelRef.current = nextLevel;
+              setLevel(nextLevel);
+              setMessage(`Level ${nextLevel}. Difficulty increased.`);
+            } else {
+              setMessage("+1 ring collected.");
+            }
+
             coin.position.copy(randomPosition());
-            setMessage("+1 coin collected.");
           }
         });
 
-        obstaclesRef.current.forEach((obstacle) => {
-          obstacle.rotation.y += delta * 1.1;
+        obstaclesRef.current.forEach((obstacle, index) => {
+          obstacle.rotation.y += delta * (1.1 + levelRef.current * 0.08);
+          obstacle.position.y = 0.35 + Math.sin(now * 0.002 + index) * 0.04;
 
           if (
             now > hitCooldownRef.current &&
-            obstacle.position.distanceTo(player.position) < 0.82
+            obstacle.position.distanceTo(player.position) < 0.84
           ) {
-            scoreRef.current = Math.max(0, scoreRef.current - 2);
-            setScore(scoreRef.current);
+            livesRef.current = Math.max(0, livesRef.current - 1);
+            setLives(livesRef.current);
 
             const away = player.position.clone().sub(obstacle.position);
             away.y = 0;
@@ -533,29 +640,80 @@ export default function MiniGamePage() {
             }
 
             away.normalize();
-            knockbackVelocityRef.current.copy(away.multiplyScalar(3.4));
+            knockbackVelocityRef.current.copy(away.multiplyScalar(3.8));
 
-            hitCooldownRef.current = now + 950;
-            hitUntilRef.current = now + 420;
+            hitCooldownRef.current = now + 1050;
+            hitUntilRef.current = now + 450;
+            screenShakeRef.current = 0.35;
 
-            setMessage("Obstacle hit. -2 points.");
+            setHitFlash(true);
+            window.setTimeout(() => setHitFlash(false), 180);
+
+            if (livesRef.current <= 0) {
+              setStatus("finished");
+              setMessage(`Game over. Final score: ${scoreRef.current}`);
+            } else {
+              setMessage(`Obstacle hit. ${livesRef.current} lives left.`);
+            }
           }
         });
+      } else if (player && status !== "waiting") {
+        playClip("idle", 1);
+      }
+
+      effectsRef.current = effectsRef.current.filter((effect) => {
+        effect.life -= delta;
+        effect.mesh.position.addScaledVector(effect.velocity, delta);
+        const alpha = Math.max(0, effect.life / effect.maxLife);
+        effect.mesh.scale.setScalar(1 + (1 - alpha) * 2.4);
+
+        if (effect.mesh.material instanceof THREE.MeshBasicMaterial) {
+          effect.mesh.material.opacity = alpha;
+        }
+
+        if (effect.life <= 0) {
+          scene.remove(effect.mesh);
+          effect.mesh.geometry.dispose();
+
+          if (effect.mesh.material instanceof THREE.Material) {
+            effect.mesh.material.dispose();
+          }
+
+          return false;
+        }
+
+        return true;
+      });
+
+      if (player) {
+        const cameraDirection = moveDirectionRef.current.clone();
+
+        if (cameraDirection.lengthSq() < 0.01) {
+          cameraDirection.set(0, 0, -1);
+        }
+
+        cameraDirection.normalize();
 
         cameraGoal.set(
-          player.position.x,
-          player.position.y + 6.2,
-          player.position.z + 9.6
+          player.position.x - cameraDirection.x * 8.7,
+          player.position.y + 5.8,
+          player.position.z - cameraDirection.z * 8.7
         );
+
+        if (screenShakeRef.current > 0) {
+          cameraGoal.x += (Math.random() - 0.5) * screenShakeRef.current;
+          cameraGoal.y += (Math.random() - 0.5) * screenShakeRef.current * 0.7;
+          screenShakeRef.current = Math.max(0, screenShakeRef.current - delta * 1.9);
+        }
 
         lookGoal.set(player.position.x, player.position.y + 0.95, player.position.z);
 
-        camera.position.lerp(cameraGoal, 1 - Math.exp(-4.2 * delta));
-        cameraTargetRef.current.lerp(lookGoal, 1 - Math.exp(-7.2 * delta));
+        camera.position.lerp(cameraGoal, 1 - Math.exp(-4.5 * delta));
+        cameraTargetRef.current.lerp(lookGoal, 1 - Math.exp(-7.5 * delta));
         camera.lookAt(cameraTargetRef.current);
       }
 
-      if (now - lastUiUpdate > 180) {
+      if (now - lastUiUpdate > 170) {
         lastUiUpdate = now;
         setTimeLeft(Math.ceil(timeLeftRef.current));
       }
@@ -579,14 +737,16 @@ export default function MiniGamePage() {
       window.removeEventListener("resize", resize);
       renderer.dispose();
       host.innerHTML = "";
+
       playerRef.current = null;
       mixerRef.current = null;
       actionsRef.current = {};
       currentClipRef.current = "";
       coinsRef.current = [];
       obstaclesRef.current = [];
+      effectsRef.current = [];
     };
-  }, [controllerConnected, playClip, resetGame]);
+  }, [controllerConnected, createCollectEffect, playClip, resetGame, setStatus]);
 
   async function copyControllerLink() {
     await navigator.clipboard.writeText(controllerUrl);
@@ -594,7 +754,7 @@ export default function MiniGamePage() {
   }
 
   return (
-    <main className="mini-game-page">
+    <main className={hitFlash ? "mini-game-page hit-flash" : "mini-game-page"}>
       {!controllerConnected ? (
         <section className="mini-game-qr-card">
           <div className="mini-game-icon">
@@ -632,24 +792,72 @@ export default function MiniGamePage() {
           <div ref={canvasRef} className="mini-game-canvas" />
 
           <section className="mini-game-hud">
-            <div>
+            <div className="hud-card">
               <small>Score</small>
               <strong>{score}</strong>
             </div>
 
-            <div>
+            <div className="hud-card">
               <small>Time</small>
               <strong>{timeLeft}s</strong>
             </div>
 
-            <div>
-              <small>Status</small>
-              <strong>{gameStatus === "finished" ? "Game Over" : "Playing"}</strong>
+            <div className="hud-card">
+              <small>Level</small>
+              <strong>{level}</strong>
+            </div>
+
+            <div className="hud-card lives">
+              <small>Lives</small>
+              <strong>
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <Heart
+                    key={index}
+                    size={18}
+                    fill={index < lives ? "currentColor" : "none"}
+                  />
+                ))}
+              </strong>
             </div>
           </section>
 
+          <section className="mini-game-status-chip">
+            {gameStatus === "paused" ? <Pause size={18} /> : <Shield size={18} />}
+            {gameStatus === "ready"
+              ? "Ready"
+              : gameStatus === "paused"
+                ? "Paused"
+                : gameStatus === "finished"
+                  ? "Game Over"
+                  : "Playing"}
+          </section>
+
+          {gameStatus !== "playing" && (
+            <section className="mini-game-overlay-card">
+              <div className="mini-game-overlay-icon">
+                {gameStatus === "paused" ? <Pause size={34} /> : <Trophy size={34} />}
+              </div>
+
+              <h2>
+                {gameStatus === "ready"
+                  ? "Ready to Run"
+                  : gameStatus === "paused"
+                    ? "Paused"
+                    : "Game Over"}
+              </h2>
+
+              <p>
+                {gameStatus === "ready"
+                  ? "Press Start on your mobile controller."
+                  : gameStatus === "paused"
+                    ? "Press Resume on mobile to continue."
+                    : `Final score: ${score}`}
+              </p>
+            </section>
+          )}
+
           <section className="mini-game-message">
-            <Trophy size={18} />
+            <Zap size={18} />
             {message}
           </section>
         </>
