@@ -34,6 +34,8 @@ export default function MiniGameControllerPage() {
   const socketRef = useRef<Socket | null>(null);
   const joystickBaseRef = useRef<HTMLDivElement | null>(null);
   const joystickVectorRef = useRef<JoystickVector>({ x: 0, y: 0 });
+  const joystickActiveRef = useRef(false);
+  const activePointerIdRef = useRef<number | null>(null);
 
   const cleanRoomId = roomId
     .trim()
@@ -89,13 +91,10 @@ export default function MiniGameControllerPage() {
     const interval = window.setInterval(() => {
       const vector = joystickVectorRef.current;
 
-      if (
-        socketRef.current?.connected &&
-        (Math.abs(vector.x) > 0.01 || Math.abs(vector.y) > 0.01)
-      ) {
+      if (socketRef.current?.connected) {
         sendJoystick(vector.x, vector.y);
       }
-    }, 70);
+    }, 60);
 
     return () => {
       window.clearInterval(interval);
@@ -164,6 +163,8 @@ export default function MiniGameControllerPage() {
   }
 
   function resetJoystick() {
+    joystickActiveRef.current = false;
+    activePointerIdRef.current = null;
     joystickVectorRef.current = { x: 0, y: 0 };
     setKnob({ x: 0, y: 0 });
     sendJoystick(0, 0);
@@ -249,21 +250,30 @@ export default function MiniGameControllerPage() {
               ref={joystickBaseRef}
               className="virtual-joystick"
               onPointerDown={(event) => {
+                joystickActiveRef.current = true;
+                activePointerIdRef.current = event.pointerId;
                 event.currentTarget.setPointerCapture(event.pointerId);
                 updateJoystickFromPointer(event.clientX, event.clientY);
               }}
               onPointerMove={(event) => {
-                if (event.buttons > 0) {
+                if (
+                  joystickActiveRef.current &&
+                  activePointerIdRef.current === event.pointerId
+                ) {
                   updateJoystickFromPointer(event.clientX, event.clientY);
                 }
               }}
-              onPointerUp={resetJoystick}
-              onPointerCancel={resetJoystick}
-              onPointerLeave={(event) => {
-                if (event.buttons > 0) {
+              onPointerUp={(event) => {
+                if (activePointerIdRef.current === event.pointerId) {
                   resetJoystick();
                 }
               }}
+              onPointerCancel={(event) => {
+                if (activePointerIdRef.current === event.pointerId) {
+                  resetJoystick();
+                }
+              }}
+              onLostPointerCapture={resetJoystick}
             >
               <div className="joystick-rings" />
               <div
