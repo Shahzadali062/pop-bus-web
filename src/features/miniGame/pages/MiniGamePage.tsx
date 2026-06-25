@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Copy, Gauge, Pause, QrCode, Shield, Trophy, Zap } from "lucide-react";
+import { Copy, Heart, Pause, QrCode, Shield, Trophy, Zap } from "lucide-react";
 import { io, type Socket } from "socket.io-client";
 import QRCode from "qrcode";
 import * as THREE from "three";
@@ -9,8 +9,6 @@ import "./MiniGamePage.css";
 
 type GameControl =
   | "boost"
-  | "brake-down"
-  | "brake-up"
   | "drift-down"
   | "drift-up"
   | "jump"
@@ -27,34 +25,38 @@ type JoystickState = {
   magnitude: number;
 };
 
-type TrackSample = {
-  position: THREE.Vector3;
-  tangent: THREE.Vector3;
-  normal: THREE.Vector3;
-  yaw: number;
-  distance: number;
-};
-
-type TrackData = {
-  samples: TrackSample[];
-  length: number;
-};
-
-type Checkpoint = {
-  sampleIndex: number;
+type PassengerStop = {
   label: string;
+  position: THREE.Vector3;
+  color: number;
 };
 
-type OpponentBike = {
+type DropZone = {
+  label: string;
+  position: THREE.Vector3;
+  color: number;
+};
+
+type StopMarker = {
   root: THREE.Group;
-  progress: number;
+  ring: THREE.Mesh;
+  glow: THREE.Mesh;
+  people: THREE.Group;
+};
+
+type TrafficActor = {
+  root: THREE.Group;
+  axis: "x" | "z";
+  direction: 1 | -1;
+  lane: number;
   speed: number;
-  laneOffset: number;
+  wrapMin: number;
+  wrapMax: number;
 };
 
-type TrackObstacle = {
+type EnergyCell = {
   root: THREE.Group;
-  radius: number;
+  pulse: number;
 };
 
 type ParticleEffect = {
@@ -69,81 +71,72 @@ const PUBLIC_WEB_URL =
     ? window.location.origin
     : "https://pop-bus-web.vercel.app";
 
-const TRACK_WIDTH = 6.4;
-const TRACK_SAMPLE_COUNT = 760;
-const TOTAL_LAPS = 3;
-const MAX_ARMOR = 3;
-const MAX_NITRO = 100;
-const START_SAMPLE_INDEX = 12;
+const CITY_LIMIT_X = 18;
+const CITY_LIMIT_Z = 13;
+const INITIAL_TIME = 120;
+const MAX_LIVES = 4;
 
-const TRACK_POINTS = [
-  new THREE.Vector3(0, 0, 20),
-  new THREE.Vector3(13, 0, 18),
-  new THREE.Vector3(23, 0, 8),
-  new THREE.Vector3(21, 0, -6),
-  new THREE.Vector3(10, 0, -19),
-  new THREE.Vector3(-5, 0, -22),
-  new THREE.Vector3(-20, 0, -15),
-  new THREE.Vector3(-25, 0, 0),
-  new THREE.Vector3(-17, 0, 15),
-  new THREE.Vector3(-4, 0, 23),
+const PASSENGER_STOPS: PassengerStop[] = [
+  {
+    label: "Market Stop",
+    position: new THREE.Vector3(-13.8, 0, -8.8),
+    color: 0x22c55e,
+  },
+  {
+    label: "Cinema Corner",
+    position: new THREE.Vector3(12.9, 0, -9.2),
+    color: 0xf59e0b,
+  },
+  {
+    label: "Campus Gate",
+    position: new THREE.Vector3(-14.1, 0, 7.9),
+    color: 0x38bdf8,
+  },
+  {
+    label: "Clinic Lane",
+    position: new THREE.Vector3(13.4, 0, 8.6),
+    color: 0xfb7185,
+  },
+  {
+    label: "Metro Plaza",
+    position: new THREE.Vector3(0, 0, -11.2),
+    color: 0xa3e635,
+  },
 ];
 
-const CHECKPOINTS: Checkpoint[] = [
-  { sampleIndex: 0, label: "Start line" },
-  { sampleIndex: 100, label: "Hill bend" },
-  { sampleIndex: 210, label: "Tunnel exit" },
-  { sampleIndex: 320, label: "Back straight" },
-  { sampleIndex: 430, label: "Hairpin" },
-  { sampleIndex: 560, label: "Grandstand" },
-  { sampleIndex: 670, label: "Final chicane" },
+const DROP_ZONES: DropZone[] = [
+  {
+    label: "Central Terminal",
+    position: new THREE.Vector3(0, 0, 10.8),
+    color: 0x60a5fa,
+  },
+  {
+    label: "Night Depot",
+    position: new THREE.Vector3(15.1, 0, 0.8),
+    color: 0xf97316,
+  },
+  {
+    label: "Harbor Stand",
+    position: new THREE.Vector3(-15.2, 0, -0.6),
+    color: 0x2dd4bf,
+  },
 ];
 
 function createRoomId() {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
-function angleDelta(target: number, current: number) {
-  return Math.atan2(Math.sin(target - current), Math.cos(target - current));
-}
+function pickDifferentIndex(length: number, currentIndex: number) {
+  if (length <= 1) return 0;
 
-function buildTrackData(): TrackData {
-  const curve = new THREE.CatmullRomCurve3(TRACK_POINTS, true, "centripetal", 0.45);
-  const samples: TrackSample[] = [];
-  let distance = 0;
-  let previous = curve.getPointAt(0);
+  let nextIndex = Math.floor(Math.random() * length);
 
-  for (let index = 0; index < TRACK_SAMPLE_COUNT; index += 1) {
-    const t = index / TRACK_SAMPLE_COUNT;
-    const position = curve.getPointAt(t);
-    const tangent = curve.getTangentAt(t).setY(0).normalize();
-    const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
-    const yaw = Math.atan2(tangent.x, -tangent.z);
-
-    if (index > 0) {
-      distance += previous.distanceTo(position);
-    }
-
-    samples.push({
-      position,
-      tangent,
-      normal,
-      yaw,
-      distance,
-    });
-
-    previous = position;
+  if (nextIndex === currentIndex) {
+    nextIndex = (nextIndex + 1) % length;
   }
 
-  distance += previous.distanceTo(samples[0].position);
-
-  return {
-    samples,
-    length: distance,
-  };
+  return nextIndex;
 }
-
-const TRACK_DATA = buildTrackData();
 
 function createBox(
   width: number,
@@ -154,14 +147,321 @@ function createBox(
   return new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), material);
 }
 
-function setShadow(root: THREE.Object3D, cast = true, receive = true) {
-  root.traverse((child) => {
+function setShadow(mesh: THREE.Object3D, cast = true, receive = true) {
+  mesh.traverse((child) => {
     if ((child as THREE.Mesh).isMesh) {
-      const mesh = child as THREE.Mesh;
-      mesh.castShadow = cast;
-      mesh.receiveShadow = receive;
+      const item = child as THREE.Mesh;
+      item.castShadow = cast;
+      item.receiveShadow = receive;
     }
   });
+}
+
+function createBusModel() {
+  const root = new THREE.Group();
+  root.name = "pop-bus";
+
+  const bodyMaterial = new THREE.MeshStandardMaterial({
+    color: 0xf97316,
+    metalness: 0.18,
+    roughness: 0.42,
+  });
+  const roofMaterial = new THREE.MeshStandardMaterial({
+    color: 0xffc857,
+    metalness: 0.12,
+    roughness: 0.36,
+  });
+  const glassMaterial = new THREE.MeshStandardMaterial({
+    color: 0x9be7ff,
+    emissive: 0x075985,
+    emissiveIntensity: 0.35,
+    metalness: 0.08,
+    roughness: 0.18,
+  });
+  const wheelMaterial = new THREE.MeshStandardMaterial({
+    color: 0x111827,
+    metalness: 0.24,
+    roughness: 0.58,
+  });
+  const rimMaterial = new THREE.MeshStandardMaterial({
+    color: 0xd1d5db,
+    metalness: 0.68,
+    roughness: 0.3,
+  });
+  const lightMaterial = new THREE.MeshStandardMaterial({
+    color: 0xfef3c7,
+    emissive: 0xfacc15,
+    emissiveIntensity: 1.6,
+    roughness: 0.2,
+  });
+  const tailLightMaterial = new THREE.MeshStandardMaterial({
+    color: 0xef4444,
+    emissive: 0xdc2626,
+    emissiveIntensity: 0.9,
+    roughness: 0.35,
+  });
+
+  const body = createBox(1.55, 0.62, 2.42, bodyMaterial);
+  body.position.y = 0.54;
+  root.add(body);
+
+  const roof = createBox(1.34, 0.42, 1.8, roofMaterial);
+  roof.position.set(0, 1.05, -0.08);
+  root.add(roof);
+
+  const windshield = createBox(1.04, 0.28, 0.035, glassMaterial);
+  windshield.position.set(0, 1.03, -1.14);
+  root.add(windshield);
+
+  const rearWindow = createBox(0.96, 0.24, 0.035, glassMaterial);
+  rearWindow.position.set(0, 0.96, 1.13);
+  root.add(rearWindow);
+
+  [-0.66, 0.66].forEach((x) => {
+    [-0.52, 0.1, 0.72].forEach((z) => {
+      const windowPanel = createBox(0.035, 0.22, 0.34, glassMaterial);
+      windowPanel.position.set(x, 0.94, z);
+      root.add(windowPanel);
+    });
+  });
+
+  [-0.55, 0.55].forEach((x) => {
+    const headlight = createBox(0.24, 0.12, 0.045, lightMaterial);
+    headlight.position.set(x, 0.55, -1.25);
+    root.add(headlight);
+
+    const tailLight = createBox(0.2, 0.1, 0.045, tailLightMaterial);
+    tailLight.position.set(x, 0.55, 1.25);
+    root.add(tailLight);
+  });
+
+  [-0.83, 0.83].forEach((x) => {
+    [-0.78, 0.78].forEach((z) => {
+      const wheel = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.24, 0.24, 0.2, 22),
+        wheelMaterial
+      );
+      wheel.rotation.z = Math.PI / 2;
+      wheel.position.set(x, 0.31, z);
+      root.add(wheel);
+
+      const rim = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.105, 0.105, 0.215, 18),
+        rimMaterial
+      );
+      rim.rotation.z = Math.PI / 2;
+      rim.position.copy(wheel.position);
+      root.add(rim);
+    });
+  });
+
+  const routeSign = createBox(0.82, 0.18, 0.04, glassMaterial);
+  routeSign.position.set(0, 1.33, -0.94);
+  root.add(routeSign);
+
+  const underGlow = new THREE.PointLight(0x22c55e, 2.1, 4.2);
+  underGlow.position.set(0, 0.22, 0.05);
+  root.add(underGlow);
+
+  setShadow(root, true, false);
+
+  return root;
+}
+
+function createTrafficVehicle(color: number) {
+  const root = new THREE.Group();
+  const paint = new THREE.MeshStandardMaterial({
+    color,
+    metalness: 0.2,
+    roughness: 0.45,
+  });
+  const glass = new THREE.MeshStandardMaterial({
+    color: 0xc7f9ff,
+    emissive: 0x0e7490,
+    emissiveIntensity: 0.24,
+    roughness: 0.2,
+  });
+  const tire = new THREE.MeshStandardMaterial({
+    color: 0x0f172a,
+    roughness: 0.65,
+  });
+
+  const base = createBox(1.12, 0.36, 1.82, paint);
+  base.position.y = 0.36;
+  root.add(base);
+
+  const cabin = createBox(0.82, 0.32, 0.78, glass);
+  cabin.position.set(0, 0.68, -0.08);
+  root.add(cabin);
+
+  [-0.6, 0.6].forEach((x) => {
+    [-0.58, 0.58].forEach((z) => {
+      const wheel = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.17, 0.17, 0.16, 14),
+        tire
+      );
+      wheel.rotation.z = Math.PI / 2;
+      wheel.position.set(x, 0.23, z);
+      root.add(wheel);
+    });
+  });
+
+  setShadow(root, true, false);
+
+  return root;
+}
+
+function createPassengerMarker(stop: PassengerStop) {
+  const root = new THREE.Group();
+  root.position.copy(stop.position);
+
+  const ringMaterial = new THREE.MeshBasicMaterial({
+    color: stop.color,
+    transparent: true,
+    opacity: 0.86,
+    side: THREE.DoubleSide,
+  });
+  const glowMaterial = new THREE.MeshBasicMaterial({
+    color: stop.color,
+    transparent: true,
+    opacity: 0.16,
+    side: THREE.DoubleSide,
+  });
+  const personMaterial = new THREE.MeshStandardMaterial({
+    color: stop.color,
+    emissive: stop.color,
+    emissiveIntensity: 0.18,
+    roughness: 0.55,
+  });
+  const headMaterial = new THREE.MeshStandardMaterial({
+    color: 0xffd7b5,
+    roughness: 0.62,
+  });
+
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.78, 0.035, 10, 44), ringMaterial);
+  ring.rotation.x = Math.PI / 2;
+  ring.position.y = 0.035;
+  root.add(ring);
+
+  const glow = new THREE.Mesh(new THREE.CircleGeometry(1.05, 44), glowMaterial);
+  glow.rotation.x = -Math.PI / 2;
+  glow.position.y = 0.025;
+  root.add(glow);
+
+  const people = new THREE.Group();
+
+  [-0.24, 0.2].forEach((x, index) => {
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.12, 0.28, 4, 8), personMaterial);
+    body.position.set(x, 0.38, index === 0 ? -0.08 : 0.12);
+    people.add(body);
+
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.12, 14, 10), headMaterial);
+    head.position.set(x, 0.68, index === 0 ? -0.08 : 0.12);
+    people.add(head);
+  });
+
+  root.add(people);
+
+  return {
+    root,
+    ring,
+    glow,
+    people,
+  };
+}
+
+function createDropGate() {
+  const root = new THREE.Group();
+  const beamMaterial = new THREE.MeshBasicMaterial({
+    color: 0x60a5fa,
+    transparent: true,
+    opacity: 0.88,
+  });
+  const floorMaterial = new THREE.MeshBasicMaterial({
+    color: 0x60a5fa,
+    transparent: true,
+    opacity: 0.16,
+    side: THREE.DoubleSide,
+  });
+
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(1.45, 64), floorMaterial);
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = 0.035;
+  root.add(floor);
+
+  [-0.92, 0.92].forEach((x) => {
+    const column = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 1.75, 14), beamMaterial);
+    column.position.set(x, 0.9, 0);
+    root.add(column);
+  });
+
+  const top = createBox(1.95, 0.08, 0.08, beamMaterial);
+  top.position.y = 1.72;
+  root.add(top);
+
+  root.visible = false;
+
+  return root;
+}
+
+function createEnergyCell() {
+  const root = new THREE.Group();
+  const material = new THREE.MeshStandardMaterial({
+    color: 0x2dd4bf,
+    emissive: 0x14b8a6,
+    emissiveIntensity: 0.8,
+    metalness: 0.35,
+    roughness: 0.24,
+  });
+  const haloMaterial = new THREE.MeshBasicMaterial({
+    color: 0xa7f3d0,
+    transparent: true,
+    opacity: 0.28,
+    side: THREE.DoubleSide,
+  });
+
+  const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.28, 0), material);
+  core.position.y = 0.54;
+  root.add(core);
+
+  const halo = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.025, 8, 32), haloMaterial);
+  halo.position.y = 0.54;
+  root.add(halo);
+
+  return root;
+}
+
+function randomRoadPosition() {
+  const lanes = [-9, -3, 3, 9];
+  const lane = lanes[Math.floor(Math.random() * lanes.length)];
+
+  if (Math.random() > 0.5) {
+    return new THREE.Vector3(THREE.MathUtils.randFloat(-15.5, 15.5), 0, lane);
+  }
+
+  return new THREE.Vector3(lane, 0, THREE.MathUtils.randFloat(-10.5, 10.5));
+}
+
+function createSpark(scene: THREE.Scene, position: THREE.Vector3, color: number) {
+  const material = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.92,
+  });
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), material);
+  mesh.position.copy(position);
+  scene.add(mesh);
+
+  return {
+    mesh,
+    velocity: new THREE.Vector3(
+      THREE.MathUtils.randFloatSpread(2.2),
+      THREE.MathUtils.randFloat(1.4, 2.5),
+      THREE.MathUtils.randFloatSpread(2.2)
+    ),
+    life: 0.58,
+    maxLife: 0.58,
+  };
 }
 
 function disposeMaterial(material: THREE.Material | THREE.Material[]) {
@@ -183,482 +483,52 @@ function disposeObjectTree(root: THREE.Object3D) {
   });
 }
 
-function createTubeBetween(
-  start: THREE.Vector3,
-  end: THREE.Vector3,
-  radius: number,
-  material: THREE.Material
-) {
-  const direction = end.clone().sub(start);
-  const length = direction.length();
-  const tube = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius, radius, length, 12),
-    material
-  );
-
-  tube.position.copy(start).addScaledVector(direction, 0.5);
-  tube.quaternion.setFromUnitVectors(
-    new THREE.Vector3(0, 1, 0),
-    direction.normalize()
-  );
-
-  return tube;
-}
-
-function createMotorcycleModel(primaryColor: number, riderColor: number) {
-  const root = new THREE.Group();
-
-  const tireMaterial = new THREE.MeshStandardMaterial({
-    color: 0x070707,
-    metalness: 0.12,
-    roughness: 0.62,
-  });
-  const rimMaterial = new THREE.MeshStandardMaterial({
-    color: 0xd9dde4,
-    metalness: 0.8,
-    roughness: 0.22,
-  });
-  const frameMaterial = new THREE.MeshStandardMaterial({
-    color: 0x151515,
-    metalness: 0.7,
-    roughness: 0.26,
-  });
-  const bodyMaterial = new THREE.MeshStandardMaterial({
-    color: primaryColor,
-    metalness: 0.42,
-    roughness: 0.24,
-  });
-  const riderSuitMaterial = new THREE.MeshStandardMaterial({
-    color: riderColor,
-    metalness: 0.08,
-    roughness: 0.44,
-  });
-  const helmetMaterial = new THREE.MeshStandardMaterial({
-    color: 0xf8fafc,
-    metalness: 0.35,
-    roughness: 0.18,
-  });
-  const visorMaterial = new THREE.MeshStandardMaterial({
-    color: 0x111827,
-    emissive: 0x38bdf8,
-    emissiveIntensity: 0.18,
-    metalness: 0.52,
-    roughness: 0.18,
-  });
-  const lightMaterial = new THREE.MeshStandardMaterial({
-    color: 0xfff7d6,
-    emissive: 0xfff1a8,
-    emissiveIntensity: 1.45,
-    roughness: 0.25,
-  });
-
-  const wheelGeometry = new THREE.TorusGeometry(0.43, 0.105, 16, 34);
-  const rimGeometry = new THREE.TorusGeometry(0.26, 0.035, 12, 28);
-
-  [-1.06, 1.05].forEach((z) => {
-    const tire = new THREE.Mesh(wheelGeometry, tireMaterial);
-    tire.rotation.y = Math.PI / 2;
-    tire.position.set(0, 0.47, z);
-    root.add(tire);
-
-    const rim = new THREE.Mesh(rimGeometry, rimMaterial);
-    rim.rotation.y = Math.PI / 2;
-    rim.position.copy(tire.position);
-    root.add(rim);
-
-    const hub = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.08, 0.08, 0.36, 18),
-      rimMaterial
-    );
-    hub.rotation.z = Math.PI / 2;
-    hub.position.copy(tire.position);
-    root.add(hub);
-  });
-
-  root.add(
-    createTubeBetween(
-      new THREE.Vector3(0, 0.58, -1.04),
-      new THREE.Vector3(0, 0.9, -0.25),
-      0.055,
-      frameMaterial
-    )
-  );
-  root.add(
-    createTubeBetween(
-      new THREE.Vector3(0, 0.58, 1.04),
-      new THREE.Vector3(0, 0.82, 0.18),
-      0.055,
-      frameMaterial
-    )
-  );
-  root.add(
-    createTubeBetween(
-      new THREE.Vector3(0, 0.82, 0.18),
-      new THREE.Vector3(0, 0.9, -0.25),
-      0.05,
-      frameMaterial
-    )
-  );
-
-  const fairing = createBox(0.62, 0.42, 0.88, bodyMaterial);
-  fairing.position.set(0, 0.88, -0.42);
-  fairing.rotation.x = -0.12;
-  root.add(fairing);
-
-  const tank = new THREE.Mesh(new THREE.SphereGeometry(0.46, 24, 14), bodyMaterial);
-  tank.scale.set(0.92, 0.48, 1.18);
-  tank.position.set(0, 1.08, 0.28);
-  root.add(tank);
-
-  const tail = createBox(0.5, 0.2, 0.64, bodyMaterial);
-  tail.position.set(0, 0.98, 0.96);
-  tail.rotation.x = 0.22;
-  root.add(tail);
-
-  const seat = createBox(0.46, 0.12, 0.78, frameMaterial);
-  seat.position.set(0, 1.15, 0.72);
-  seat.rotation.x = 0.08;
-  root.add(seat);
-
-  const headlight = createBox(0.3, 0.16, 0.055, lightMaterial);
-  headlight.position.set(0, 0.92, -1.16);
-  root.add(headlight);
-
-  const headLamp = new THREE.PointLight(0xfff1a8, 1.35, 5.5);
-  headLamp.position.set(0, 0.92, -1.35);
-  root.add(headLamp);
-
-  const handlebar = createTubeBetween(
-    new THREE.Vector3(-0.44, 1.18, -0.62),
-    new THREE.Vector3(0.44, 1.18, -0.62),
-    0.035,
-    frameMaterial
-  );
-  root.add(handlebar);
-
-  const rider = new THREE.Group();
-  rider.position.set(0, 0.08, 0.18);
-  rider.rotation.x = -0.18;
-  root.add(rider);
-
-  const torso = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.18, 0.44, 5, 12),
-    riderSuitMaterial
-  );
-  torso.position.set(0, 1.48, 0.08);
-  torso.rotation.x = Math.PI / 2.8;
-  rider.add(torso);
-
-  const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.2, 22, 16), helmetMaterial);
-  helmet.position.set(0, 1.72, -0.32);
-  rider.add(helmet);
-
-  const visor = createBox(0.28, 0.075, 0.035, visorMaterial);
-  visor.position.set(0, 1.72, -0.51);
-  rider.add(visor);
-
-  [-0.26, 0.26].forEach((x) => {
-    rider.add(
-      createTubeBetween(
-        new THREE.Vector3(x * 0.55, 1.45, -0.08),
-        new THREE.Vector3(x, 1.17, -0.62),
-        0.045,
-        riderSuitMaterial
-      )
-    );
-    rider.add(
-      createTubeBetween(
-        new THREE.Vector3(x * 0.45, 1.15, 0.34),
-        new THREE.Vector3(x * 0.78, 0.66, 0.82),
-        0.055,
-        riderSuitMaterial
-      )
-    );
-  });
-
-  const exhaust = createTubeBetween(
-    new THREE.Vector3(0.34, 0.56, 0.18),
-    new THREE.Vector3(0.46, 0.48, 1.12),
-    0.06,
-    rimMaterial
-  );
-  root.add(exhaust);
-
-  setShadow(root, true, false);
-
-  return root;
-}
-
-function createTrackMesh(trackData: TrackData, material: THREE.Material) {
-  const vertices: number[] = [];
-  const uvs: number[] = [];
-  const indices: number[] = [];
-
-  trackData.samples.forEach((sample, index) => {
-    const left = sample.position.clone().addScaledVector(sample.normal, TRACK_WIDTH / 2);
-    const right = sample.position.clone().addScaledVector(sample.normal, -TRACK_WIDTH / 2);
-
-    vertices.push(left.x, 0.025, left.z, right.x, 0.025, right.z);
-    uvs.push(index / 12, 0, index / 12, 1);
-  });
-
-  for (let index = 0; index < trackData.samples.length; index += 1) {
-    const next = (index + 1) % trackData.samples.length;
-    const a = index * 2;
-    const b = a + 1;
-    const c = next * 2;
-    const d = c + 1;
-
-    indices.push(a, b, c, b, d, c);
-  }
-
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
-  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
-  geometry.setIndex(indices);
-  geometry.computeVertexNormals();
-
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.receiveShadow = true;
-
-  return mesh;
-}
-
-function createAsphaltTexture() {
-  const canvas = document.createElement("canvas");
-  canvas.width = 256;
-  canvas.height = 256;
-  const ctx = canvas.getContext("2d");
-
-  if (!ctx) {
-    return null;
-  }
-
-  ctx.fillStyle = "#2a2b2d";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  for (let index = 0; index < 2600; index += 1) {
-    const value = 32 + Math.floor(Math.random() * 42);
-    ctx.fillStyle = `rgba(${value}, ${value}, ${value}, ${0.16 + Math.random() * 0.18})`;
-    ctx.fillRect(
-      Math.random() * canvas.width,
-      Math.random() * canvas.height,
-      1 + Math.random() * 2,
-      1 + Math.random() * 2
-    );
-  }
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(18, 2);
-  texture.colorSpace = THREE.SRGBColorSpace;
-
-  return texture;
-}
-
-function createGrassTexture() {
-  const canvas = document.createElement("canvas");
-  canvas.width = 256;
-  canvas.height = 256;
-  const ctx = canvas.getContext("2d");
-
-  if (!ctx) {
-    return null;
-  }
-
-  ctx.fillStyle = "#273b21";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  for (let index = 0; index < 1700; index += 1) {
-    const green = 55 + Math.floor(Math.random() * 65);
-    ctx.fillStyle = `rgba(${20 + Math.random() * 30}, ${green}, ${22}, 0.45)`;
-    ctx.fillRect(Math.random() * canvas.width, Math.random() * canvas.height, 2, 1);
-  }
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(12, 12);
-  texture.colorSpace = THREE.SRGBColorSpace;
-
-  return texture;
-}
-
-function getTrackPose(distance: number, laneOffset = 0) {
-  const normalizedDistance =
-    ((distance % TRACK_DATA.length) + TRACK_DATA.length) % TRACK_DATA.length;
-  let index = 0;
-
-  for (let sampleIndex = 1; sampleIndex < TRACK_DATA.samples.length; sampleIndex += 1) {
-    if (TRACK_DATA.samples[sampleIndex].distance >= normalizedDistance) {
-      index = sampleIndex;
-      break;
-    }
-  }
-
-  const sample = TRACK_DATA.samples[index];
-  const position = sample.position.clone().addScaledVector(sample.normal, laneOffset);
-
-  return {
-    sample,
-    position,
-  };
-}
-
-function findNearestTrackSample(position: THREE.Vector3) {
-  let nearest = TRACK_DATA.samples[0];
-  let nearestIndex = 0;
-  let nearestDistanceSq = Number.POSITIVE_INFINITY;
-
-  for (let index = 0; index < TRACK_DATA.samples.length; index += 2) {
-    const sample = TRACK_DATA.samples[index];
-    const dx = position.x - sample.position.x;
-    const dz = position.z - sample.position.z;
-    const distanceSq = dx * dx + dz * dz;
-
-    if (distanceSq < nearestDistanceSq) {
-      nearest = sample;
-      nearestIndex = index;
-      nearestDistanceSq = distanceSq;
-    }
-  }
-
-  return {
-    sample: nearest,
-    index: nearestIndex,
-    distance: Math.sqrt(nearestDistanceSq),
-  };
-}
-
-function createCheckpointGate() {
-  const root = new THREE.Group();
-  const glowMaterial = new THREE.MeshBasicMaterial({
-    color: 0xfacc15,
-    transparent: true,
-    opacity: 0.86,
-    side: THREE.DoubleSide,
-  });
-  const padMaterial = new THREE.MeshBasicMaterial({
-    color: 0x22c55e,
-    transparent: true,
-    opacity: 0.2,
-    side: THREE.DoubleSide,
-  });
-
-  const pad = new THREE.Mesh(new THREE.CircleGeometry(2.5, 54), padMaterial);
-  pad.rotation.x = -Math.PI / 2;
-  pad.position.y = 0.04;
-  root.add(pad);
-
-  [-2.25, 2.25].forEach((x) => {
-    const column = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.07, 0.07, 2.3, 14),
-      glowMaterial
-    );
-    column.position.set(x, 1.16, 0);
-    root.add(column);
-  });
-
-  const top = createBox(4.7, 0.1, 0.1, glowMaterial);
-  top.position.y = 2.3;
-  root.add(top);
-
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(2.45, 0.035, 10, 64), glowMaterial);
-  ring.rotation.x = Math.PI / 2;
-  ring.position.y = 0.08;
-  root.add(ring);
-
-  return root;
-}
-
-function createCone() {
-  const root = new THREE.Group();
-  const coneMaterial = new THREE.MeshStandardMaterial({
-    color: 0xff6b2b,
-    roughness: 0.48,
-    metalness: 0.04,
-  });
-  const stripeMaterial = new THREE.MeshStandardMaterial({
-    color: 0xf8fafc,
-    roughness: 0.4,
-  });
-
-  const cone = new THREE.Mesh(new THREE.ConeGeometry(0.25, 0.72, 18), coneMaterial);
-  cone.position.y = 0.38;
-  root.add(cone);
-
-  const stripe = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.025, 8, 18), stripeMaterial);
-  stripe.position.y = 0.44;
-  stripe.rotation.x = Math.PI / 2;
-  root.add(stripe);
-
-  setShadow(root, true, false);
-
-  return root;
-}
-
-function createSpark(scene: THREE.Scene, position: THREE.Vector3, color: number) {
-  const material = new THREE.MeshBasicMaterial({
-    color,
-    transparent: true,
-    opacity: 0.95,
-  });
-  const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 8), material);
-  mesh.position.copy(position);
-  scene.add(mesh);
-
-  return {
-    mesh,
-    velocity: new THREE.Vector3(
-      THREE.MathUtils.randFloatSpread(2.4),
-      THREE.MathUtils.randFloat(1.1, 2.4),
-      THREE.MathUtils.randFloatSpread(2.4)
-    ),
-    life: 0.5,
-    maxLife: 0.5,
-  };
-}
-
 export default function MiniGamePage() {
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const [roomId] = useState(createRoomId);
 
   const joystickRef = useRef<JoystickState>({ x: 0, y: 0, magnitude: 0 });
-  const bikeRef = useRef<THREE.Group | null>(null);
-  const headingRef = useRef(TRACK_DATA.samples[START_SAMPLE_INDEX].yaw);
+  const busRef = useRef<THREE.Group | null>(null);
+  const velocityRef = useRef(new THREE.Vector3());
+  const headingRef = useRef(0);
   const speedRef = useRef(0);
-  const brakeHeldRef = useRef(false);
-  const boostUntilRef = useRef(0);
-  const nitroRef = useRef(MAX_NITRO);
-  const armorRef = useRef(MAX_ARMOR);
-  const lapRef = useRef(1);
-  const nextCheckpointRef = useRef(1);
-  const raceTimeRef = useRef(0);
-  const bestLapRef = useRef<number | null>(null);
-  const lapStartedAtRef = useRef(0);
-  const checkpointGateRef = useRef<THREE.Group | null>(null);
-  const opponentsRef = useRef<OpponentBike[]>([]);
-  const obstaclesRef = useRef<TrackObstacle[]>([]);
-  const effectsRef = useRef<ParticleEffect[]>([]);
+  const cameraTargetRef = useRef(new THREE.Vector3());
+  const driftActiveRef = useRef(false);
+  const turboUntilRef = useRef(0);
+  const turboRef = useRef(100);
   const damageCooldownRef = useRef(0);
   const screenShakeRef = useRef(0);
-  const cameraTargetRef = useRef(new THREE.Vector3());
+  const carryingPassengerRef = useRef(false);
+  const activeStopIndexRef = useRef(0);
+  const activeDropIndexRef = useRef(0);
+  const scoreRef = useRef(0);
+  const livesRef = useRef(MAX_LIVES);
+  const deliveriesRef = useRef(0);
+  const comboRef = useRef(1);
+  const levelRef = useRef(1);
+  const timeLeftRef = useRef(INITIAL_TIME);
   const gameStatusRef = useRef<GameStatus>("waiting");
+  const stopMarkersRef = useRef<StopMarker[]>([]);
+  const dropGateRef = useRef<THREE.Group | null>(null);
+  const trafficRef = useRef<TrafficActor[]>([]);
+  const energyCellsRef = useRef<EnergyCell[]>([]);
+  const effectsRef = useRef<ParticleEffect[]>([]);
 
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [controllerConnected, setControllerConnected] = useState(false);
   const [socketStatus, setSocketStatus] = useState("Connecting");
   const [gameStatus, setGameStatus] = useState<GameStatus>("waiting");
-  const [lap, setLap] = useState(1);
-  const [checkpoint, setCheckpoint] = useState(1);
-  const [raceTime, setRaceTime] = useState(0);
-  const [bestLap, setBestLap] = useState<number | null>(null);
+  const [score, setScore] = useState(0);
+  const [lives, setLives] = useState(MAX_LIVES);
+  const [deliveries, setDeliveries] = useState(0);
+  const [combo, setCombo] = useState(1);
+  const [level, setLevel] = useState(1);
+  const [timeLeft, setTimeLeft] = useState(INITIAL_TIME);
+  const [turbo, setTurbo] = useState(100);
   const [speed, setSpeed] = useState(0);
-  const [nitro, setNitro] = useState(MAX_NITRO);
-  const [armor, setArmor] = useState(MAX_ARMOR);
-  const [message, setMessage] = useState("Scan QR with mobile to race.");
+  const [mission, setMission] = useState("Pair mobile controller");
+  const [message, setMessage] = useState("Scan QR with mobile to dispatch.");
   const [hitFlash, setHitFlash] = useState(false);
 
   const controllerUrl = `${PUBLIC_WEB_URL}/game-controller/${roomId}`;
@@ -668,93 +538,119 @@ export default function MiniGamePage() {
     setGameStatus(status);
   }, []);
 
-  const resetRace = useCallback(() => {
-    const startSample = TRACK_DATA.samples[START_SAMPLE_INDEX];
-    const bike = bikeRef.current;
-
-    headingRef.current = startSample.yaw;
-    speedRef.current = 0;
-    brakeHeldRef.current = false;
-    boostUntilRef.current = 0;
-    nitroRef.current = MAX_NITRO;
-    armorRef.current = MAX_ARMOR;
-    lapRef.current = 1;
-    nextCheckpointRef.current = 1;
-    raceTimeRef.current = 0;
-    lapStartedAtRef.current = 0;
-    bestLapRef.current = null;
-    damageCooldownRef.current = 0;
-    screenShakeRef.current = 0;
-    joystickRef.current = { x: 0, y: 0, magnitude: 0 };
-
-    if (bike) {
-      bike.position.copy(startSample.position);
-      bike.position.y = 0.08;
-      bike.rotation.set(0, startSample.yaw, 0);
+  const updateMissionText = useCallback(() => {
+    if (carryingPassengerRef.current) {
+      setMission(`Drop at ${DROP_ZONES[activeDropIndexRef.current].label}`);
+      return;
     }
 
-    opponentsRef.current.forEach((opponent, index) => {
-      opponent.progress = 12 + index * 38;
-      opponent.speed = 8.4 + index * 0.55;
+    setMission(`Pick up at ${PASSENGER_STOPS[activeStopIndexRef.current].label}`);
+  }, []);
+
+  const resetGame = useCallback(() => {
+    scoreRef.current = 0;
+    livesRef.current = MAX_LIVES;
+    deliveriesRef.current = 0;
+    comboRef.current = 1;
+    levelRef.current = 1;
+    timeLeftRef.current = INITIAL_TIME;
+    turboRef.current = 100;
+    carryingPassengerRef.current = false;
+    activeStopIndexRef.current = pickDifferentIndex(
+      PASSENGER_STOPS.length,
+      activeStopIndexRef.current
+    );
+    activeDropIndexRef.current = pickDifferentIndex(
+      DROP_ZONES.length,
+      activeDropIndexRef.current
+    );
+    joystickRef.current = { x: 0, y: 0, magnitude: 0 };
+    velocityRef.current.set(0, 0, 0);
+    headingRef.current = 0;
+    speedRef.current = 0;
+    driftActiveRef.current = false;
+    turboUntilRef.current = 0;
+    damageCooldownRef.current = 0;
+    screenShakeRef.current = 0;
+
+    const bus = busRef.current;
+
+    if (bus) {
+      bus.position.set(0, 0, 4.8);
+      bus.rotation.set(0, 0, 0);
+      bus.scale.setScalar(1);
+    }
+
+    trafficRef.current.forEach((actor, index) => {
+      if (actor.axis === "x") {
+        actor.root.position.set(index % 2 === 0 ? -16 : 16, 0, actor.lane);
+      } else {
+        actor.root.position.set(actor.lane, 0, index % 2 === 0 ? -11.5 : 11.5);
+      }
     });
 
-    setLap(1);
-    setCheckpoint(1);
-    setRaceTime(0);
-    setBestLap(null);
+    energyCellsRef.current.forEach((cell) => {
+      cell.root.position.copy(randomRoadPosition());
+      cell.root.visible = true;
+    });
+
+    setScore(0);
+    setLives(MAX_LIVES);
+    setDeliveries(0);
+    setCombo(1);
+    setLevel(1);
+    setTimeLeft(INITIAL_TIME);
+    setTurbo(100);
     setSpeed(0);
-    setNitro(MAX_NITRO);
-    setArmor(MAX_ARMOR);
     setStatus("playing");
-    setMessage("Race live. Smooth throttle, lean into corners.");
-  }, [setStatus]);
+    updateMissionText();
+    setMessage("Shift started. Keep the route clean.");
+  }, [setStatus, updateMissionText]);
 
   const handleControl = useCallback(
     (control: GameControl) => {
       if (control === "start" || control === "restart") {
-        resetRace();
+        resetGame();
         return;
       }
 
       if (control === "pause" && gameStatusRef.current === "playing") {
         setStatus("paused");
-        setMessage("Race paused.");
+        setMessage("Route paused.");
         return;
       }
 
       if (control === "resume" && gameStatusRef.current === "paused") {
         setStatus("playing");
-        setMessage("Back on track.");
+        setMessage("Back on route.");
         return;
       }
 
-      if (
-        control === "brake-down" ||
-        control === "drift-down" ||
-        control === "jump"
-      ) {
-        brakeHeldRef.current = true;
+      if (control === "drift-down" || control === "jump") {
+        driftActiveRef.current = true;
         return;
       }
 
-      if (control === "brake-up" || control === "drift-up") {
-        brakeHeldRef.current = false;
+      if (control === "drift-up") {
+        driftActiveRef.current = false;
         return;
       }
 
-      if (gameStatusRef.current !== "playing") return;
+      if (gameStatusRef.current !== "playing") {
+        return;
+      }
 
       if (control === "boost") {
-        if (nitroRef.current < 18) {
-          setMessage("Nitro is recharging.");
+        if (turboRef.current < 18) {
+          setMessage("Turbo is recharging.");
           return;
         }
 
-        boostUntilRef.current = Date.now() + 1650;
-        setMessage("Nitro engaged.");
+        turboUntilRef.current = Date.now() + 1750;
+        setMessage("Turbo surge ready.");
       }
     },
-    [resetRace, setStatus]
+    [resetGame, setStatus]
   );
 
   useEffect(() => {
@@ -762,7 +658,7 @@ export default function MiniGamePage() {
       width: 340,
       margin: 2,
       color: {
-        dark: "#161616",
+        dark: "#111827",
         light: "#ffffff",
       },
     })
@@ -799,16 +695,16 @@ export default function MiniGamePage() {
     socket.on("game:peer-joined", (payload: { role?: string }) => {
       if (payload?.role === "controller") {
         setControllerConnected(true);
-        setMessage("Controller paired. Loading racing circuit...");
+        setMessage("Controller paired. Loading city route...");
       }
     });
 
     socket.on("game:peer-left", (payload: { role?: string }) => {
       if (payload?.role === "controller") {
         joystickRef.current = { x: 0, y: 0, magnitude: 0 };
-        brakeHeldRef.current = false;
         setControllerConnected(false);
         setStatus("waiting");
+        setMission("Pair mobile controller");
         setMessage("Controller disconnected.");
       }
     });
@@ -851,241 +747,294 @@ export default function MiniGamePage() {
     if (!host) return;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x151716);
-    scene.fog = new THREE.Fog(0x151716, 36, 72);
+    scene.background = new THREE.Color(0x161719);
+    scene.fog = new THREE.Fog(0x161719, 22, 52);
 
-    const camera = new THREE.PerspectiveCamera(
-      58,
-      Math.max(host.clientWidth, 1) / Math.max(host.clientHeight, 1),
-      0.1,
-      110
-    );
-    camera.position.set(0, 6.1, 12.5);
-    cameraTargetRef.current.copy(TRACK_DATA.samples[START_SAMPLE_INDEX].position);
+    const width = Math.max(host.clientWidth, 1);
+    const height = Math.max(host.clientHeight, 1);
+    const camera = new THREE.PerspectiveCamera(48, width / height, 0.1, 90);
+    camera.position.set(0, 8.2, 13.8);
+    cameraTargetRef.current.set(0, 0.8, 0);
 
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
       powerPreference: "high-performance",
     });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.7));
-    renderer.setSize(Math.max(host.clientWidth, 1), Math.max(host.clientHeight, 1));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+    renderer.setSize(width, height);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     host.appendChild(renderer.domElement);
 
-    const ambient = new THREE.HemisphereLight(0xffffff, 0x2f3b28, 1.65);
+    const ambient = new THREE.HemisphereLight(0xf8fafc, 0x262626, 1.75);
     scene.add(ambient);
 
-    const sun = new THREE.DirectionalLight(0xfff7df, 3.4);
-    sun.position.set(-16, 22, 11);
+    const sun = new THREE.DirectionalLight(0xfff7ed, 3.1);
+    sun.position.set(-8, 12, 7);
     sun.castShadow = true;
-    sun.shadow.camera.left = -36;
-    sun.shadow.camera.right = 36;
-    sun.shadow.camera.top = 34;
-    sun.shadow.camera.bottom = -34;
     sun.shadow.camera.near = 0.5;
-    sun.shadow.camera.far = 80;
+    sun.shadow.camera.far = 40;
+    sun.shadow.camera.left = -18;
+    sun.shadow.camera.right = 18;
+    sun.shadow.camera.top = 16;
+    sun.shadow.camera.bottom = -16;
     scene.add(sun);
 
-    const trackLight = new THREE.DirectionalLight(0x93c5fd, 1.2);
-    trackLight.position.set(14, 8, -16);
-    scene.add(trackLight);
+    const cityGlow = new THREE.DirectionalLight(0x38bdf8, 1.25);
+    cityGlow.position.set(8, 5, -10);
+    scene.add(cityGlow);
 
-    const asphaltTexture = createAsphaltTexture();
-    const grassTexture = createGrassTexture();
     const groundMaterial = new THREE.MeshStandardMaterial({
-      color: 0x2f4428,
-      map: grassTexture,
-      roughness: 0.9,
-      metalness: 0.02,
+      color: 0x202124,
+      metalness: 0.04,
+      roughness: 0.88,
     });
-    const asphaltMaterial = new THREE.MeshStandardMaterial({
-      color: 0x343538,
-      map: asphaltTexture,
-      roughness: 0.78,
+    const roadMaterial = new THREE.MeshStandardMaterial({
+      color: 0x2f3033,
+      roughness: 0.82,
       metalness: 0.05,
     });
+    const curbMaterial = new THREE.MeshStandardMaterial({
+      color: 0xb8b2a6,
+      roughness: 0.74,
+      metalness: 0.02,
+    });
+    const lineMaterial = new THREE.MeshBasicMaterial({
+      color: 0xfff4b8,
+      transparent: true,
+      opacity: 0.86,
+    });
 
-    const ground = createBox(82, 0.08, 82, groundMaterial);
+    const ground = createBox(43, 0.08, 32, groundMaterial);
     ground.position.y = -0.08;
     ground.receiveShadow = true;
     scene.add(ground);
 
-    const road = createTrackMesh(TRACK_DATA, asphaltMaterial);
-    scene.add(road);
+    [-9, -3, 3, 9].forEach((z) => {
+      const road = createBox(39, 0.035, 2.4, roadMaterial);
+      road.position.set(0, 0, z);
+      road.receiveShadow = true;
+      scene.add(road);
 
-    const stripeMaterial = new THREE.MeshBasicMaterial({
-      color: 0xfef3c7,
-      transparent: true,
-      opacity: 0.85,
-    });
-    const curbRed = new THREE.MeshStandardMaterial({
-      color: 0xd73a31,
-      roughness: 0.45,
-    });
-    const curbWhite = new THREE.MeshStandardMaterial({
-      color: 0xf4f4f0,
-      roughness: 0.38,
-    });
-    const barrierMaterial = new THREE.MeshStandardMaterial({
-      color: 0xb8c0cc,
-      metalness: 0.28,
-      roughness: 0.42,
-    });
-
-    for (let index = 0; index < TRACK_DATA.samples.length; index += 18) {
-      const sample = TRACK_DATA.samples[index];
-
-      if (index % 36 === 0) {
-        const dash = createBox(0.1, 0.035, 1.32, stripeMaterial);
-        dash.position.copy(sample.position);
-        dash.position.y = 0.07;
-        dash.rotation.y = sample.yaw;
+      for (let x = -17; x <= 17; x += 3.4) {
+        const dash = createBox(1.35, 0.04, 0.045, lineMaterial);
+        dash.position.set(x, 0.035, z);
         scene.add(dash);
       }
-
-      [-1, 1].forEach((side) => {
-        const curb = createBox(
-          0.44,
-          0.08,
-          1.25,
-          (index / 18) % 2 === 0 ? curbRed : curbWhite
-        );
-        curb.position.copy(sample.position).addScaledVector(
-          sample.normal,
-          side * (TRACK_WIDTH / 2 + 0.28)
-        );
-        curb.position.y = 0.08;
-        curb.rotation.y = sample.yaw;
-        scene.add(curb);
-
-        if (index % 54 === 0) {
-          const rail = createBox(0.14, 0.46, 1.8, barrierMaterial);
-          rail.position.copy(sample.position).addScaledVector(
-            sample.normal,
-            side * (TRACK_WIDTH / 2 + 1.1)
-          );
-          rail.position.y = 0.32;
-          rail.rotation.y = sample.yaw;
-          scene.add(rail);
-        }
-      });
-    }
-
-    const bannerMaterial = new THREE.MeshStandardMaterial({
-      color: 0xfacc15,
-      roughness: 0.42,
-      metalness: 0.08,
     });
-    const standMaterial = new THREE.MeshStandardMaterial({
-      color: 0x4b5563,
-      roughness: 0.62,
+
+    [-12, 0, 12].forEach((x) => {
+      const road = createBox(2.5, 0.04, 29, roadMaterial);
+      road.position.set(x, 0.01, 0);
+      road.receiveShadow = true;
+      scene.add(road);
+
+      for (let z = -12; z <= 12; z += 3.2) {
+        const dash = createBox(0.05, 0.045, 1.2, lineMaterial);
+        dash.position.set(x, 0.045, z);
+        scene.add(dash);
+      }
+    });
+
+    [-20.6, 20.6].forEach((x) => {
+      const curb = createBox(0.36, 0.2, 31, curbMaterial);
+      curb.position.set(x, 0.04, 0);
+      scene.add(curb);
+    });
+
+    [-15.4, 15.4].forEach((z) => {
+      const curb = createBox(42, 0.2, 0.36, curbMaterial);
+      curb.position.set(0, 0.04, z);
+      scene.add(curb);
+    });
+
+    const buildingMaterials = [
+      new THREE.MeshStandardMaterial({ color: 0x4a5568, roughness: 0.68 }),
+      new THREE.MeshStandardMaterial({ color: 0x5b4636, roughness: 0.72 }),
+      new THREE.MeshStandardMaterial({ color: 0x355070, roughness: 0.7 }),
+      new THREE.MeshStandardMaterial({ color: 0x4b5563, roughness: 0.64 }),
+    ];
+    const windowMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffe8a3,
+      transparent: true,
+      opacity: 0.78,
+    });
+
+    const buildingSlots = [
+      [-17, -13],
+      [-7.5, -13],
+      [6.5, -13],
+      [17, -13],
+      [-17, 13],
+      [-7.5, 13],
+      [6.5, 13],
+      [17, 13],
+      [-20, -5.9],
+      [20, -5.7],
+      [-20, 5.8],
+      [20, 5.8],
+    ] as const;
+
+    buildingSlots.forEach(([x, z], index) => {
+      const height = 1.9 + (index % 4) * 0.72 + Math.random() * 0.45;
+      const building = createBox(
+        index % 2 === 0 ? 3.4 : 2.6,
+        height,
+        index % 3 === 0 ? 2.8 : 3.5,
+        buildingMaterials[index % buildingMaterials.length]
+      );
+      building.position.set(x, height / 2 - 0.02, z);
+      building.receiveShadow = true;
+      building.castShadow = true;
+      scene.add(building);
+
+      const faceZ = z > 0 ? z - 1.78 : z + 1.78;
+      for (let row = 0; row < 3; row += 1) {
+        for (let col = -1; col <= 1; col += 1) {
+          const windowLight = createBox(0.34, 0.18, 0.025, windowMaterial);
+          windowLight.position.set(x + col * 0.7, 0.72 + row * 0.54, faceZ);
+          scene.add(windowLight);
+        }
+      }
+    });
+
+    const lampMaterial = new THREE.MeshStandardMaterial({
+      color: 0x52525b,
+      metalness: 0.38,
+      roughness: 0.42,
+    });
+    const lampLightMaterial = new THREE.MeshBasicMaterial({
+      color: 0xfff2bd,
     });
 
     [
-      { d: 22, side: 1 },
-      { d: 58, side: -1 },
-      { d: 105, side: 1 },
-      { d: 142, side: -1 },
-    ].forEach((item, index) => {
-      const pose = getTrackPose(item.d, item.side * (TRACK_WIDTH / 2 + 5.1));
-      const stand = createBox(5.4, 1.4, 2.2, standMaterial);
-      stand.position.copy(pose.position);
-      stand.position.y = 0.64;
-      stand.rotation.y = pose.sample.yaw;
-      scene.add(stand);
+      [-16, -6],
+      [-6, -6],
+      [6, -6],
+      [16, -6],
+      [-16, 6],
+      [-6, 6],
+      [6, 6],
+      [16, 6],
+    ].forEach(([x, z]) => {
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.35, 10), lampMaterial);
+      pole.position.set(x, 0.68, z);
+      scene.add(pole);
 
-      const banner = createBox(4.8, 0.64, 0.08, bannerMaterial);
-      banner.position.copy(pose.position).addScaledVector(pose.sample.tangent, 0.1);
-      banner.position.y = 1.74;
-      banner.rotation.y = pose.sample.yaw;
-      scene.add(banner);
+      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 8), lampLightMaterial);
+      bulb.position.set(x, 1.42, z);
+      scene.add(bulb);
 
-      const light = new THREE.PointLight(index % 2 === 0 ? 0xfacc15 : 0x60a5fa, 0.9, 8);
-      light.position.copy(pose.position);
-      light.position.y = 2.35;
+      const light = new THREE.PointLight(0xffe8a3, 0.85, 5);
+      light.position.set(x, 1.48, z);
       scene.add(light);
     });
 
-    const playerBike = createMotorcycleModel(0xe11d48, 0x111827);
-    const startSample = TRACK_DATA.samples[START_SAMPLE_INDEX];
-    playerBike.position.copy(startSample.position);
-    playerBike.position.y = 0.08;
-    playerBike.rotation.y = startSample.yaw;
-    bikeRef.current = playerBike;
-    scene.add(playerBike);
+    const bus = createBusModel();
+    bus.position.set(0, 0, 4.8);
+    busRef.current = bus;
+    scene.add(bus);
 
-    const checkpointGate = createCheckpointGate();
-    checkpointGateRef.current = checkpointGate;
-    scene.add(checkpointGate);
+    const stopMarkers = PASSENGER_STOPS.map((stop) => {
+      const marker = createPassengerMarker(stop);
+      scene.add(marker.root);
+      return marker;
+    });
+    stopMarkersRef.current = stopMarkers;
 
-    const opponents: OpponentBike[] = [
+    const dropGate = createDropGate();
+    dropGateRef.current = dropGate;
+    scene.add(dropGate);
+
+    const trafficSpecs: TrafficActor[] = [
       {
-        root: createMotorcycleModel(0x2563eb, 0xf8fafc),
-        progress: 16,
-        speed: 8.2,
-        laneOffset: -1.15,
+        root: createTrafficVehicle(0xfacc15),
+        axis: "x",
+        direction: 1,
+        lane: -3,
+        speed: 3.4,
+        wrapMin: -20,
+        wrapMax: 20,
       },
       {
-        root: createMotorcycleModel(0x22c55e, 0x1f2937),
-        progress: 46,
-        speed: 8.8,
-        laneOffset: 1.1,
+        root: createTrafficVehicle(0xef4444),
+        axis: "x",
+        direction: -1,
+        lane: 3,
+        speed: 3.0,
+        wrapMin: -20,
+        wrapMax: 20,
       },
       {
-        root: createMotorcycleModel(0xf59e0b, 0x111827),
-        progress: 76,
-        speed: 8.55,
-        laneOffset: -0.2,
+        root: createTrafficVehicle(0x22c55e),
+        axis: "x",
+        direction: 1,
+        lane: 9,
+        speed: 2.85,
+        wrapMin: -20,
+        wrapMax: 20,
+      },
+      {
+        root: createTrafficVehicle(0x60a5fa),
+        axis: "z",
+        direction: -1,
+        lane: 12,
+        speed: 3.15,
+        wrapMin: -15,
+        wrapMax: 15,
+      },
+      {
+        root: createTrafficVehicle(0xf472b6),
+        axis: "z",
+        direction: 1,
+        lane: -12,
+        speed: 2.95,
+        wrapMin: -15,
+        wrapMax: 15,
       },
     ];
 
-    opponents.forEach((opponent) => scene.add(opponent.root));
-    opponentsRef.current = opponents;
-
-    const obstacles: TrackObstacle[] = [];
-    [72, 118, 164, 214, 268, 322, 380, 438, 492, 548, 612, 690].forEach(
-      (sampleIndex, index) => {
-        const sample = TRACK_DATA.samples[sampleIndex % TRACK_DATA.samples.length];
-        const cone = createCone();
-        const side = index % 2 === 0 ? 1 : -1;
-        cone.position.copy(sample.position).addScaledVector(
-          sample.normal,
-          side * (TRACK_WIDTH / 2 - 0.8)
-        );
-        cone.rotation.y = sample.yaw + side * 0.18;
-        scene.add(cone);
-        obstacles.push({
-          root: cone,
-          radius: 0.72,
-        });
+    trafficSpecs.forEach((actor, index) => {
+      if (actor.axis === "x") {
+        actor.root.position.set(index % 2 === 0 ? -16 : 16, 0, actor.lane);
+        actor.root.rotation.y = actor.direction === 1 ? -Math.PI / 2 : Math.PI / 2;
+      } else {
+        actor.root.position.set(actor.lane, 0, actor.direction === 1 ? -11.5 : 11.5);
+        actor.root.rotation.y = actor.direction === 1 ? 0 : Math.PI;
       }
-    );
-    obstaclesRef.current = obstacles;
+
+      scene.add(actor.root);
+    });
+    trafficRef.current = trafficSpecs;
+
+    const energyCells: EnergyCell[] = Array.from({ length: 7 }, (_, index) => {
+      const cell = createEnergyCell();
+      cell.position.copy(randomRoadPosition());
+      scene.add(cell);
+
+      return {
+        root: cell,
+        pulse: index * 0.9,
+      };
+    });
+    energyCellsRef.current = energyCells;
 
     if (gameStatusRef.current === "waiting") {
       setStatus("ready");
-      setMessage("Press Start on mobile. Up joystick accelerates, left/right leans.");
+      activeStopIndexRef.current = pickDifferentIndex(PASSENGER_STOPS.length, -1);
+      activeDropIndexRef.current = pickDifferentIndex(DROP_ZONES.length, -1);
+      updateMissionText();
+      setMessage("Controller paired. Start the shift.");
     }
 
     let frameId = 0;
     let lastUiUpdate = 0;
     const clock = new THREE.Clock();
     const forward = new THREE.Vector3();
+    const targetVelocity = new THREE.Vector3();
     const cameraGoal = new THREE.Vector3();
     const lookGoal = new THREE.Vector3();
-
-    const placeGate = () => {
-      const gate = checkpointGateRef.current;
-      if (!gate) return;
-
-      const checkpointTarget = CHECKPOINTS[nextCheckpointRef.current];
-      const sample = TRACK_DATA.samples[checkpointTarget.sampleIndex];
-      gate.position.copy(sample.position);
-      gate.position.y = 0.02;
-      gate.rotation.y = sample.yaw;
-    };
 
     const applyDamage = (reason: string) => {
       const now = Date.now();
@@ -1094,205 +1043,243 @@ export default function MiniGamePage() {
         return;
       }
 
-      armorRef.current = Math.max(0, armorRef.current - 1);
+      livesRef.current = Math.max(0, livesRef.current - 1);
+      comboRef.current = 1;
       damageCooldownRef.current = now + 1200;
-      speedRef.current *= 0.38;
-      screenShakeRef.current = 0.42;
-      setArmor(armorRef.current);
+      screenShakeRef.current = 0.46;
+      speedRef.current *= -0.36;
+      velocityRef.current.multiplyScalar(-0.25);
+      setLives(livesRef.current);
+      setCombo(1);
       setHitFlash(true);
-      window.setTimeout(() => setHitFlash(false), 180);
+      window.setTimeout(() => setHitFlash(false), 190);
 
-      if (bikeRef.current) {
-        effectsRef.current.push(
-          createSpark(scene, bikeRef.current.position.clone().add(new THREE.Vector3(0, 0.55, 0)), 0xff5a3c)
-        );
-      }
+      effectsRef.current.push(createSpark(scene, bus.position.clone().add(new THREE.Vector3(0, 0.55, 0)), 0xff7043));
 
-      if (armorRef.current <= 0) {
+      if (livesRef.current <= 0) {
         setStatus("finished");
-        setMessage(`${reason}. Bike retired on lap ${lapRef.current}.`);
+        setMessage(`Shift failed: ${reason}. Final fare: ${scoreRef.current}`);
       } else {
-        setMessage(`${reason}. ${armorRef.current} armor left.`);
+        setMessage(`${reason}. ${livesRef.current} bus shields left.`);
       }
     };
 
-    const passCheckpoint = () => {
-      const currentIndex = nextCheckpointRef.current;
+    const completePickup = () => {
+      carryingPassengerRef.current = true;
+      activeDropIndexRef.current = pickDifferentIndex(
+        DROP_ZONES.length,
+        activeDropIndexRef.current
+      );
+      comboRef.current = Math.min(8, comboRef.current + 1);
+      scoreRef.current += 10 + comboRef.current * 2;
+      setCombo(comboRef.current);
+      setScore(scoreRef.current);
+      updateMissionText();
+      setMessage("Passengers on board. Head to the terminal.");
+      effectsRef.current.push(createSpark(scene, bus.position.clone().add(new THREE.Vector3(0, 0.75, 0)), 0x22c55e));
+    };
 
-      if (currentIndex === 0) {
-        const completedLap = lapRef.current;
-        const completedLapTime = raceTimeRef.current - lapStartedAtRef.current;
-        bestLapRef.current =
-          bestLapRef.current === null
-            ? completedLapTime
-            : Math.min(bestLapRef.current, completedLapTime);
+    const completeDrop = () => {
+      carryingPassengerRef.current = false;
+      deliveriesRef.current += 1;
 
-        if (completedLap >= TOTAL_LAPS) {
-          setBestLap(bestLapRef.current);
-          setStatus("finished");
-          setMessage(`Finish! Total ${raceTimeRef.current.toFixed(1)}s.`);
-          return;
-        }
+      const fare = 35 + comboRef.current * 12 + levelRef.current * 3;
+      scoreRef.current += fare;
+      timeLeftRef.current = Math.min(150, timeLeftRef.current + 8);
 
-        lapRef.current += 1;
-        lapStartedAtRef.current = raceTimeRef.current;
-        nextCheckpointRef.current = 1;
-        setLap(lapRef.current);
-        setCheckpoint(1);
-        setBestLap(bestLapRef.current);
-        setMessage(`Lap ${lapRef.current}/${TOTAL_LAPS}. Keep the line tight.`);
-        return;
+      if (deliveriesRef.current % 3 === 0) {
+        levelRef.current = Math.min(8, levelRef.current + 1);
+        setLevel(levelRef.current);
+        setMessage(`Clean drop. City speed level ${levelRef.current}.`);
+      } else {
+        setMessage(`Drop complete. +${fare} fare.`);
       }
 
-      nextCheckpointRef.current = (currentIndex + 1) % CHECKPOINTS.length;
-      setCheckpoint(nextCheckpointRef.current);
-      setMessage(`Checkpoint: ${CHECKPOINTS[currentIndex].label}.`);
+      activeStopIndexRef.current = pickDifferentIndex(
+        PASSENGER_STOPS.length,
+        activeStopIndexRef.current
+      );
+      setDeliveries(deliveriesRef.current);
+      setScore(scoreRef.current);
+      setTimeLeft(Math.ceil(timeLeftRef.current));
+      updateMissionText();
+      effectsRef.current.push(createSpark(scene, bus.position.clone().add(new THREE.Vector3(0, 0.75, 0)), 0xfacc15));
     };
 
     const animate = () => {
-      const delta = Math.min(clock.getDelta(), 0.04);
+      const delta = Math.min(clock.getDelta(), 0.042);
       const now = Date.now();
       const status = gameStatusRef.current;
-      const bike = bikeRef.current;
 
-      opponentsRef.current.forEach((opponent, index) => {
-        opponent.progress += opponent.speed * delta;
-        const laneWave = Math.sin(now * 0.0012 + index) * 0.35;
-        const pose = getTrackPose(opponent.progress, opponent.laneOffset + laneWave);
-        opponent.root.position.copy(pose.position);
-        opponent.root.position.y = 0.08;
-        opponent.root.rotation.y = pose.sample.yaw;
-        opponent.root.rotation.z = Math.sin(now * 0.003 + index) * 0.08;
+      if (status === "playing") {
+        timeLeftRef.current = Math.max(0, timeLeftRef.current - delta);
 
-        if (
-          status === "playing" &&
-          bike &&
-          opponent.root.position.distanceTo(bike.position) < 1.28
-        ) {
-          applyDamage("Rival contact");
+        if (timeLeftRef.current <= 0) {
+          setStatus("finished");
+          setMessage(`Shift complete. Final fare: ${scoreRef.current}`);
+        }
+      }
+
+      const levelBoost = 1 + (levelRef.current - 1) * 0.08;
+
+      trafficRef.current.forEach((actor) => {
+        const trafficSpeed = actor.speed * levelBoost * (status === "playing" ? 1 : 0.35);
+
+        if (actor.axis === "x") {
+          actor.root.position.x += actor.direction * trafficSpeed * delta;
+
+          if (actor.root.position.x > actor.wrapMax) actor.root.position.x = actor.wrapMin;
+          if (actor.root.position.x < actor.wrapMin) actor.root.position.x = actor.wrapMax;
+        } else {
+          actor.root.position.z += actor.direction * trafficSpeed * delta;
+
+          if (actor.root.position.z > actor.wrapMax) actor.root.position.z = actor.wrapMin;
+          if (actor.root.position.z < actor.wrapMin) actor.root.position.z = actor.wrapMax;
+        }
+
+        if (status === "playing" && actor.root.position.distanceTo(bus.position) < 1.18) {
+          applyDamage("Traffic hit");
         }
       });
 
-      placeGate();
-
-      if (status === "playing" && bike) {
-        raceTimeRef.current += delta;
+      if (status === "playing") {
         const joystick = joystickRef.current;
-        const rawX = THREE.MathUtils.clamp(joystick.x, -1, 1);
-        const rawY = THREE.MathUtils.clamp(joystick.y, -1, 1);
-        const deadZone = joystick.magnitude < 0.07;
-        const steer = deadZone ? 0 : rawX;
-        const throttle = deadZone ? 0 : THREE.MathUtils.clamp(-rawY, 0, 1);
-        const joystickBrake = deadZone ? 0 : THREE.MathUtils.clamp(rawY, 0, 1);
-        const braking = brakeHeldRef.current || joystickBrake > 0.16;
-        const nearestTrack = findNearestTrackSample(bike.position);
-        const offroad = nearestTrack.distance > TRACK_WIDTH / 2 + 0.65;
-        const grass = nearestTrack.distance > TRACK_WIDTH / 2 + 2.1;
-        const isBoosting =
-          now < boostUntilRef.current && nitroRef.current > 0 && throttle > 0.18;
+        const deadZone = joystick.magnitude < 0.08;
+        const steer = deadZone ? 0 : THREE.MathUtils.clamp(joystick.x, -1, 1);
+        const throttleRaw = deadZone ? 0 : THREE.MathUtils.clamp(-joystick.y, -0.52, 1);
+        const isTurbo = now < turboUntilRef.current && turboRef.current > 0;
+        const isDrifting = driftActiveRef.current && Math.abs(speedRef.current) > 1.1;
 
-        if (isBoosting) {
-          nitroRef.current = Math.max(0, nitroRef.current - delta * 31);
+        if (isTurbo && throttleRaw > 0.05) {
+          turboRef.current = Math.max(0, turboRef.current - delta * 26);
         } else {
-          nitroRef.current = Math.min(
-            MAX_NITRO,
-            nitroRef.current + delta * (offroad ? 4.5 : 8.2)
-          );
+          turboRef.current = Math.min(100, turboRef.current + delta * (isDrifting ? 4 : 7.5));
         }
 
-        if (nitroRef.current <= 0) {
-          boostUntilRef.current = 0;
+        if (turboRef.current <= 0) {
+          turboUntilRef.current = 0;
         }
 
-        const grip = grass ? 0.52 : offroad ? 0.72 : 1;
-        const maxSpeed = (isBoosting ? 19.2 : 14.2) * grip;
-        const acceleration = (isBoosting ? 13.5 : 9.2) * grip;
+        const maxForwardSpeed = (isTurbo ? 9.8 : 6.4) + levelRef.current * 0.24;
+        const maxReverseSpeed = 2.65;
+        const targetSpeed =
+          throttleRaw >= 0 ? throttleRaw * maxForwardSpeed : throttleRaw * maxReverseSpeed;
+        const acceleration = throttleRaw >= 0 ? 4.8 : 3.3;
 
-        if (throttle > 0.02) {
-          speedRef.current += acceleration * throttle * delta;
-        } else {
-          speedRef.current *= Math.exp(-(offroad ? 1.18 : 0.34) * delta);
+        speedRef.current +=
+          (targetSpeed - speedRef.current) *
+          (1 - Math.exp(-acceleration * delta));
+
+        if (Math.abs(throttleRaw) < 0.04) {
+          speedRef.current *= Math.exp(-2.2 * delta);
         }
 
-        if (braking) {
-          speedRef.current -= (grass ? 8.5 : 13.5) * (0.45 + joystickBrake) * delta;
-        }
+        const movementPower = THREE.MathUtils.clamp(Math.abs(speedRef.current) / 5.8, 0.12, 1);
+        const turnRate = (isDrifting ? 2.08 : 1.36) * movementPower;
+        headingRef.current += steer * turnRate * delta * (speedRef.current >= 0 ? 1 : -1);
+        bus.rotation.y = headingRef.current;
 
-        speedRef.current = THREE.MathUtils.clamp(speedRef.current, 0, maxSpeed);
+        forward.set(Math.sin(headingRef.current), 0, -Math.cos(headingRef.current)).normalize();
+        targetVelocity.copy(forward).multiplyScalar(speedRef.current);
+        velocityRef.current.lerp(targetVelocity, 1 - Math.exp((isDrifting ? -3.4 : -8.5) * delta));
 
-        const speedRatio = THREE.MathUtils.clamp(speedRef.current / 14.2, 0, 1);
-        const turnRate = THREE.MathUtils.lerp(1.1, 1.95, speedRatio) * grip;
-        const brakeTurnBoost = braking ? 1.22 : 1;
-        headingRef.current += steer * turnRate * brakeTurnBoost * delta;
+        bus.position.addScaledVector(velocityRef.current, delta);
 
-        const alignment = angleDelta(nearestTrack.sample.yaw, headingRef.current);
-        const steeringCommitment = Math.min(0.9, Math.abs(steer) * 0.72);
-        const assistStrength = (offroad ? 1.9 : 0.42) * (1 - steeringCommitment) * speedRatio;
-        headingRef.current += alignment * (1 - Math.exp(-assistStrength * delta));
+        if (isDrifting && Math.abs(steer) > 0.18) {
+          const sparkBase = bus.position.clone().addScaledVector(forward, 0.62);
 
-        forward.set(Math.sin(headingRef.current), 0, -Math.cos(headingRef.current));
-        bike.position.addScaledVector(forward, speedRef.current * delta);
-        bike.position.y = 0.08 + Math.sin(now * 0.028) * speedRatio * 0.015;
-
-        const postTrack = findNearestTrackSample(bike.position);
-        const lateralOffset = bike.position
-          .clone()
-          .sub(postTrack.sample.position)
-          .dot(postTrack.sample.normal);
-        const clampedLateralOffset = THREE.MathUtils.clamp(
-          lateralOffset,
-          -TRACK_WIDTH / 2 + 0.72,
-          TRACK_WIDTH / 2 - 0.72
-        );
-
-        if (Math.abs(lateralOffset) > TRACK_WIDTH / 2 - 0.5) {
-          const recoverTarget = postTrack.sample.position
-            .clone()
-            .addScaledVector(postTrack.sample.normal, clampedLateralOffset);
-          bike.position.lerp(recoverTarget, 1 - Math.exp(-3.2 * delta));
-        }
-
-        const lean = -steer * THREE.MathUtils.lerp(0.14, 0.48, speedRatio) * grip;
-        bike.rotation.y = headingRef.current;
-        bike.rotation.z = THREE.MathUtils.lerp(bike.rotation.z, lean, 1 - Math.exp(-10 * delta));
-        bike.rotation.x = THREE.MathUtils.lerp(
-          bike.rotation.x,
-          braking ? -0.07 : speedRatio * 0.04,
-          1 - Math.exp(-8 * delta)
-        );
-
-        if (offroad) {
-          speedRef.current *= 1 - Math.min(0.2, delta * 0.72);
-
-          if (grass && speedRef.current > 7.2 && Math.random() < 0.08) {
-            effectsRef.current.push(
-              createSpark(scene, bike.position.clone().add(new THREE.Vector3(0, 0.2, 0)), 0x91c46c)
-            );
+          if (Math.random() < 0.32) {
+            effectsRef.current.push(createSpark(scene, sparkBase, 0xffd166));
           }
         }
 
-        obstaclesRef.current.forEach((obstacle) => {
-          if (obstacle.root.position.distanceTo(bike.position) < obstacle.radius) {
-            applyDamage("Cone hit");
+        const bouncedX =
+          bus.position.x < -CITY_LIMIT_X || bus.position.x > CITY_LIMIT_X;
+        const bouncedZ =
+          bus.position.z < -CITY_LIMIT_Z || bus.position.z > CITY_LIMIT_Z;
+
+        bus.position.x = THREE.MathUtils.clamp(bus.position.x, -CITY_LIMIT_X, CITY_LIMIT_X);
+        bus.position.z = THREE.MathUtils.clamp(bus.position.z, -CITY_LIMIT_Z, CITY_LIMIT_Z);
+
+        if (bouncedX || bouncedZ) {
+          applyDamage("Curb impact");
+        }
+
+        const activeStop = PASSENGER_STOPS[activeStopIndexRef.current];
+        const activeDrop = DROP_ZONES[activeDropIndexRef.current];
+
+        if (
+          !carryingPassengerRef.current &&
+          bus.position.distanceTo(activeStop.position) < 1.32
+        ) {
+          completePickup();
+        }
+
+        if (
+          carryingPassengerRef.current &&
+          bus.position.distanceTo(activeDrop.position) < 1.65
+        ) {
+          completeDrop();
+        }
+
+        energyCellsRef.current.forEach((cell) => {
+          if (!cell.root.visible) return;
+
+          if (cell.root.position.distanceTo(bus.position) < 1.02) {
+            cell.root.visible = false;
+            scoreRef.current += 8;
+            turboRef.current = Math.min(100, turboRef.current + 28);
+            timeLeftRef.current = Math.min(150, timeLeftRef.current + 2);
+            setScore(scoreRef.current);
+            setMessage("Energy cell collected.");
+            effectsRef.current.push(createSpark(scene, cell.root.position.clone(), 0x2dd4bf));
+
+            window.setTimeout(() => {
+              cell.root.position.copy(randomRoadPosition());
+              cell.root.visible = true;
+            }, 3400);
           }
         });
-
-        const targetCheckpoint = CHECKPOINTS[nextCheckpointRef.current];
-        const targetSample = TRACK_DATA.samples[targetCheckpoint.sampleIndex];
-
-        if (bike.position.distanceTo(targetSample.position) < 3.35) {
-          passCheckpoint();
-        }
-      } else if (bike) {
-        speedRef.current *= Math.exp(-2.8 * delta);
-        const coastForward = new THREE.Vector3(
-          Math.sin(headingRef.current),
-          0,
-          -Math.cos(headingRef.current)
-        );
-        bike.position.addScaledVector(coastForward, speedRef.current * delta);
-        bike.rotation.z = THREE.MathUtils.lerp(bike.rotation.z, 0, 1 - Math.exp(-6 * delta));
+      } else {
+        speedRef.current *= Math.exp(-3.2 * delta);
+        velocityRef.current.multiplyScalar(Math.exp(-3.2 * delta));
       }
+
+      stopMarkersRef.current.forEach((marker, index) => {
+        const isActive = !carryingPassengerRef.current && index === activeStopIndexRef.current;
+        const pulse = 1 + Math.sin(now * 0.006 + index) * 0.07;
+
+        marker.root.visible = !carryingPassengerRef.current || isActive;
+        marker.ring.rotation.z += delta * (isActive ? 2.9 : 0.9);
+        marker.people.rotation.y += delta * 0.8;
+        marker.root.scale.lerp(
+          new THREE.Vector3(isActive ? pulse : 0.82, isActive ? pulse : 0.82, isActive ? pulse : 0.82),
+          1 - Math.exp(-7 * delta)
+        );
+
+        if (marker.ring.material instanceof THREE.MeshBasicMaterial) {
+          marker.ring.material.opacity = isActive ? 0.94 : 0.34;
+        }
+
+        if (marker.glow.material instanceof THREE.MeshBasicMaterial) {
+          marker.glow.material.opacity = isActive ? 0.22 : 0.07;
+        }
+      });
+
+      const dropGate = dropGateRef.current;
+
+      if (dropGate) {
+        const activeDrop = DROP_ZONES[activeDropIndexRef.current];
+        dropGate.visible = carryingPassengerRef.current;
+        dropGate.position.copy(activeDrop.position);
+        dropGate.rotation.y += delta * 1.6;
+        dropGate.scale.setScalar(1 + Math.sin(now * 0.006) * 0.04);
+      }
+
+      energyCellsRef.current.forEach((cell) => {
+        cell.root.rotation.y += delta * 2.1;
+        cell.root.position.y = Math.sin(now * 0.003 + cell.pulse) * 0.08;
+      });
 
       effectsRef.current = effectsRef.current.filter((effect) => {
         effect.life -= delta;
@@ -1300,7 +1287,7 @@ export default function MiniGamePage() {
         effect.velocity.y -= 3.8 * delta;
 
         const alpha = Math.max(0, effect.life / effect.maxLife);
-        effect.mesh.scale.setScalar(1 + (1 - alpha) * 2.4);
+        effect.mesh.scale.setScalar(1 + (1 - alpha) * 2.2);
 
         if (effect.mesh.material instanceof THREE.MeshBasicMaterial) {
           effect.mesh.material.opacity = alpha;
@@ -1320,41 +1307,31 @@ export default function MiniGamePage() {
         return true;
       });
 
-      if (checkpointGateRef.current) {
-        checkpointGateRef.current.rotation.z += delta * 0.8;
-        checkpointGateRef.current.scale.setScalar(1 + Math.sin(now * 0.006) * 0.03);
+      const speedTilt = THREE.MathUtils.clamp(speedRef.current / 9, -0.4, 1);
+      bus.rotation.z = THREE.MathUtils.lerp(bus.rotation.z, -joystickRef.current.x * 0.06 * speedTilt, 1 - Math.exp(-8 * delta));
+      bus.rotation.x = THREE.MathUtils.lerp(bus.rotation.x, -Math.abs(speedTilt) * 0.025, 1 - Math.exp(-7 * delta));
+
+      const cameraDistance = 10.8 + Math.min(2.4, Math.abs(speedRef.current) * 0.18);
+      cameraGoal
+        .copy(bus.position)
+        .add(new THREE.Vector3(-Math.sin(headingRef.current) * cameraDistance, 6.4, Math.cos(headingRef.current) * cameraDistance));
+
+      if (screenShakeRef.current > 0) {
+        cameraGoal.x += THREE.MathUtils.randFloatSpread(screenShakeRef.current);
+        cameraGoal.y += THREE.MathUtils.randFloatSpread(screenShakeRef.current * 0.5);
+        screenShakeRef.current = Math.max(0, screenShakeRef.current - delta * 1.7);
       }
 
-      if (bike) {
-        const cameraDistance = THREE.MathUtils.lerp(10.4, 14.6, Math.min(1, speedRef.current / 18));
-        const cameraHeight = THREE.MathUtils.lerp(5.1, 6.4, Math.min(1, speedRef.current / 18));
-        const cameraForward = new THREE.Vector3(
-          Math.sin(headingRef.current),
-          0,
-          -Math.cos(headingRef.current)
-        );
+      lookGoal.copy(bus.position).add(new THREE.Vector3(0, 0.78, 0));
+      camera.position.lerp(cameraGoal, 1 - Math.exp(-4.8 * delta));
+      cameraTargetRef.current.lerp(lookGoal, 1 - Math.exp(-8.2 * delta));
+      camera.lookAt(cameraTargetRef.current);
 
-        cameraGoal.copy(bike.position).addScaledVector(cameraForward, -cameraDistance);
-        cameraGoal.y += cameraHeight;
-
-        if (screenShakeRef.current > 0) {
-          cameraGoal.x += THREE.MathUtils.randFloatSpread(screenShakeRef.current);
-          cameraGoal.y += THREE.MathUtils.randFloatSpread(screenShakeRef.current * 0.5);
-          screenShakeRef.current = Math.max(0, screenShakeRef.current - delta * 1.8);
-        }
-
-        lookGoal.copy(bike.position).addScaledVector(cameraForward, 5.6);
-        lookGoal.y += 1.18;
-        camera.position.lerp(cameraGoal, 1 - Math.exp(-5.6 * delta));
-        cameraTargetRef.current.lerp(lookGoal, 1 - Math.exp(-8.8 * delta));
-        camera.lookAt(cameraTargetRef.current);
-      }
-
-      if (now - lastUiUpdate > 120) {
+      if (now - lastUiUpdate > 140) {
         lastUiUpdate = now;
-        setRaceTime(raceTimeRef.current);
-        setSpeed(Math.round(speedRef.current * 16));
-        setNitro(Math.round(nitroRef.current));
+        setTimeLeft(Math.ceil(timeLeftRef.current));
+        setTurbo(Math.round(turboRef.current));
+        setSpeed(Math.round(Math.abs(speedRef.current) * 13));
       }
 
       renderer.render(scene, camera);
@@ -1364,11 +1341,11 @@ export default function MiniGamePage() {
     animate();
 
     const resize = () => {
-      const width = Math.max(host.clientWidth, 1);
-      const height = Math.max(host.clientHeight, 1);
-      camera.aspect = width / height;
+      const nextWidth = Math.max(host.clientWidth, 1);
+      const nextHeight = Math.max(host.clientHeight, 1);
+      camera.aspect = nextWidth / nextHeight;
       camera.updateProjectionMatrix();
-      renderer.setSize(width, height);
+      renderer.setSize(nextWidth, nextHeight);
     };
 
     window.addEventListener("resize", resize);
@@ -1376,19 +1353,18 @@ export default function MiniGamePage() {
     return () => {
       window.cancelAnimationFrame(frameId);
       window.removeEventListener("resize", resize);
-      asphaltTexture?.dispose();
-      grassTexture?.dispose();
       disposeObjectTree(scene);
       renderer.dispose();
       host.innerHTML = "";
 
-      bikeRef.current = null;
-      checkpointGateRef.current = null;
-      opponentsRef.current = [];
-      obstaclesRef.current = [];
+      busRef.current = null;
+      stopMarkersRef.current = [];
+      dropGateRef.current = null;
+      trafficRef.current = [];
+      energyCellsRef.current = [];
       effectsRef.current = [];
     };
-  }, [controllerConnected, setStatus]);
+  }, [controllerConnected, setStatus, updateMissionText]);
 
   async function copyControllerLink() {
     await navigator.clipboard.writeText(controllerUrl);
@@ -1401,13 +1377,10 @@ export default function MiniGamePage() {
       : gameStatus === "paused"
         ? "Paused"
         : gameStatus === "finished"
-          ? "Finished"
+          ? "Complete"
           : gameStatus === "waiting"
             ? "Waiting"
-            : "Racing";
-
-  const bestLapText = bestLap === null ? "--" : `${bestLap.toFixed(1)}s`;
-  const nextGateLabel = CHECKPOINTS[checkpoint].label;
+            : "Live";
 
   return (
     <main className={hitFlash ? "mini-game-page hit-flash" : "mini-game-page"}>
@@ -1417,12 +1390,12 @@ export default function MiniGamePage() {
             <QrCode size={34} />
           </div>
 
-          <h1>Apex Moto</h1>
+          <h1>Pop Bus Rush</h1>
 
-          <p>Scan with mobile. The phone becomes your throttle and steering.</p>
+          <p>Pair a mobile controller and turn this screen into the route.</p>
 
           {qrDataUrl ? (
-            <img className="mini-game-qr" src={qrDataUrl} alt="Apex Moto controller QR" />
+            <img className="mini-game-qr" src={qrDataUrl} alt="Pop Bus Rush controller QR" />
           ) : (
             <div className="mini-game-qr-placeholder">QR loading</div>
           )}
@@ -1444,17 +1417,15 @@ export default function MiniGamePage() {
         <>
           <div ref={canvasRef} className="mini-game-canvas" />
 
-          <section className="bike-game-hud">
+          <section className="bus-game-hud">
             <div className="hud-panel">
-              <small>Lap</small>
-              <strong>
-                {lap}/{TOTAL_LAPS}
-              </strong>
+              <small>Fare</small>
+              <strong>{score}</strong>
             </div>
 
             <div className="hud-panel">
               <small>Time</small>
-              <strong>{raceTime.toFixed(1)}s</strong>
+              <strong>{timeLeft}s</strong>
             </div>
 
             <div className="hud-panel">
@@ -1463,34 +1434,42 @@ export default function MiniGamePage() {
             </div>
 
             <div className="hud-panel">
-              <small>Nitro</small>
-              <strong>{nitro}%</strong>
+              <small>Turbo</small>
+              <strong>{turbo}%</strong>
             </div>
 
             <div className="hud-panel">
-              <small>Sector</small>
-              <strong>{checkpoint}/{CHECKPOINTS.length - 1}</strong>
+              <small>Drops</small>
+              <strong>{deliveries}</strong>
             </div>
 
             <div className="hud-panel">
-              <small>Best</small>
-              <strong>{bestLapText}</strong>
+              <small>Combo</small>
+              <strong>x{combo}</strong>
             </div>
 
-            <div className="hud-panel armor">
-              <small>Armor</small>
-              <strong>{Array.from({ length: armor }).map(() => "I").join("")}</strong>
+            <div className="hud-panel lives">
+              <small>Shield</small>
+              <strong>
+                {Array.from({ length: MAX_LIVES }).map((_, index) => (
+                  <Heart
+                    key={index}
+                    size={17}
+                    fill={index < lives ? "currentColor" : "none"}
+                  />
+                ))}
+              </strong>
             </div>
           </section>
 
-          <section className="bike-game-status-chip">
-            {gameStatus === "paused" ? <Pause size={18} /> : <Gauge size={18} />}
-            {statusLabel}
+          <section className="bus-game-status-chip">
+            {gameStatus === "paused" ? <Pause size={18} /> : <Shield size={18} />}
+            {statusLabel} / L{level}
           </section>
 
-          <section className="bike-game-race-card">
-            <small>Next Gate</small>
-            <strong>{nextGateLabel}</strong>
+          <section className="bus-game-route-card">
+            <small>Mission</small>
+            <strong>{mission}</strong>
           </section>
 
           {gameStatus !== "playing" && (
@@ -1501,24 +1480,24 @@ export default function MiniGamePage() {
 
               <h2>
                 {gameStatus === "ready"
-                  ? "Ready on Grid"
+                  ? "Ready to Depart"
                   : gameStatus === "paused"
-                    ? "Race Paused"
-                    : "Race Complete"}
+                    ? "Route Paused"
+                    : "Shift Report"}
               </h2>
 
               <p>
                 {gameStatus === "ready"
-                  ? "Press Start on the mobile controller."
+                  ? "Start from the mobile controller."
                   : gameStatus === "paused"
-                    ? "Resume from your phone."
-                    : `Time ${raceTime.toFixed(1)}s / Best lap ${bestLapText}`}
+                    ? "Resume from the controller."
+                    : `Fare ${score} / Drops ${deliveries}`}
               </p>
             </section>
           )}
 
           <section className="mini-game-message">
-            {armor > 0 ? <Zap size={18} /> : <Shield size={18} />}
+            <Zap size={18} />
             {message}
           </section>
         </>

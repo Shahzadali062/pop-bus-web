@@ -16,8 +16,8 @@ import "./MiniGameControllerPage.css";
 
 type GameControl =
   | "boost"
-  | "brake-down"
-  | "brake-up"
+  | "drift-down"
+  | "drift-up"
   | "pause"
   | "restart"
   | "resume"
@@ -28,7 +28,7 @@ type JoystickVector = {
   y: number;
 };
 
-const KNOB_LIMIT = 62;
+const KNOB_LIMIT = 58;
 
 export default function MiniGameControllerPage() {
   const { roomId = "" } = useParams();
@@ -37,7 +37,7 @@ export default function MiniGameControllerPage() {
   const joystickVectorRef = useRef<JoystickVector>({ x: 0, y: 0 });
   const joystickActiveRef = useRef(false);
   const activePointerIdRef = useRef<number | null>(null);
-  const brakePointerIdRef = useRef<number | null>(null);
+  const driftPointerIdRef = useRef<number | null>(null);
 
   const cleanRoomId = roomId
     .trim()
@@ -47,10 +47,10 @@ export default function MiniGameControllerPage() {
   const [socketStatus, setSocketStatus] = useState(() =>
     cleanRoomId ? "Connecting" : "Invalid room"
   );
-  const [message, setMessage] = useState("Hold up to accelerate.");
+  const [message, setMessage] = useState("Ready for dispatch.");
   const [knob, setKnob] = useState({ x: 0, y: 0 });
   const [isPaused, setIsPaused] = useState(false);
-  const [isBraking, setIsBraking] = useState(false);
+  const [isDrifting, setIsDrifting] = useState(false);
 
   const sendJoystick = useCallback(
     (x: number, y: number) => {
@@ -107,7 +107,7 @@ export default function MiniGameControllerPage() {
       if (socketRef.current?.connected) {
         sendJoystick(vector.x, vector.y);
       }
-    }, 45);
+    }, 50);
 
     return () => {
       window.clearInterval(interval);
@@ -137,7 +137,9 @@ export default function MiniGameControllerPage() {
   function updateJoystickFromPointer(clientX: number, clientY: number) {
     const base = joystickBaseRef.current;
 
-    if (!base) return;
+    if (!base) {
+      return;
+    }
 
     const rect = base.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
@@ -172,35 +174,35 @@ export default function MiniGameControllerPage() {
     sendJoystick(0, 0);
   }
 
-  function startBrake(pointerId: number) {
-    brakePointerIdRef.current = pointerId;
-    setIsBraking(true);
-    sendControl("brake-down");
-    setMessage("Brake held.");
+  function startDrift(pointerId: number) {
+    driftPointerIdRef.current = pointerId;
+    setIsDrifting(true);
+    sendControl("drift-down");
+    setMessage("Drift engaged.");
   }
 
-  function stopBrake(pointerId?: number) {
-    if (pointerId !== undefined && brakePointerIdRef.current !== pointerId) {
+  function stopDrift(pointerId?: number) {
+    if (pointerId !== undefined && driftPointerIdRef.current !== pointerId) {
       return;
     }
 
-    brakePointerIdRef.current = null;
-    setIsBraking(false);
-    sendControl("brake-up");
-    setMessage("Brake released.");
+    driftPointerIdRef.current = null;
+    setIsDrifting(false);
+    sendControl("drift-up");
+    setMessage("Grip restored.");
   }
 
   function togglePause() {
     if (isPaused) {
       sendControl("resume");
       setIsPaused(false);
-      setMessage("Race resumed.");
+      setMessage("Route resumed.");
       return;
     }
 
     sendControl("pause");
     setIsPaused(true);
-    setMessage("Race paused.");
+    setMessage("Route paused.");
   }
 
   return (
@@ -214,7 +216,7 @@ export default function MiniGameControllerPage() {
 
             <div>
               <span>Mobile Controller</span>
-              <h1>Apex Moto</h1>
+              <h1>Pop Bus Rush</h1>
             </div>
           </div>
 
@@ -233,7 +235,7 @@ export default function MiniGameControllerPage() {
             onClick={() => {
               sendControl("start");
               setIsPaused(false);
-              setMessage("Race started.");
+              setMessage("Shift started.");
             }}
           >
             <Play size={20} />
@@ -255,7 +257,7 @@ export default function MiniGameControllerPage() {
             onClick={() => {
               sendControl("restart");
               setIsPaused(false);
-              setMessage("Grid reset.");
+              setMessage("Route reset.");
             }}
           >
             <RotateCcw size={20} />
@@ -295,10 +297,6 @@ export default function MiniGameControllerPage() {
               onLostPointerCapture={resetJoystick}
             >
               <div className="joystick-crosshair" />
-              <div className="joystick-label up">Gas</div>
-              <div className="joystick-label down">Slow</div>
-              <div className="joystick-label left">Lean</div>
-              <div className="joystick-label right">Lean</div>
               <div
                 className="joystick-knob"
                 style={{
@@ -309,35 +307,35 @@ export default function MiniGameControllerPage() {
               </div>
             </div>
 
-            <p>Throttle / Lean</p>
+            <p>Drive</p>
           </div>
 
           <div className="game-action-column">
             <button
               type="button"
-              className="game-big-action nitro"
+              className="game-big-action turbo"
               onClick={() => {
                 sendControl("boost");
-                setMessage("Nitro fired.");
+                setMessage("Turbo fired.");
               }}
             >
               <Zap size={24} />
-              Nitro
+              Turbo
             </button>
 
             <button
               type="button"
-              className={isBraking ? "game-big-action brake active" : "game-big-action brake"}
+              className={isDrifting ? "game-big-action drift active" : "game-big-action drift"}
               onPointerDown={(event) => {
                 event.currentTarget.setPointerCapture(event.pointerId);
-                startBrake(event.pointerId);
+                startDrift(event.pointerId);
               }}
-              onPointerUp={(event) => stopBrake(event.pointerId)}
-              onPointerCancel={(event) => stopBrake(event.pointerId)}
-              onLostPointerCapture={() => stopBrake()}
+              onPointerUp={(event) => stopDrift(event.pointerId)}
+              onPointerCancel={(event) => stopDrift(event.pointerId)}
+              onLostPointerCapture={() => stopDrift()}
             >
               <Activity size={24} />
-              Brake
+              Drift
             </button>
           </div>
         </section>

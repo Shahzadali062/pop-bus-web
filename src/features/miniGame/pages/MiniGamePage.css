@@ -6,7 +6,7 @@
   display: grid;
   place-items: center;
   color: #ffffff;
-  background: #151716;
+  background: #171716;
   font-family:
     Inter,
     ui-sans-serif,
@@ -23,11 +23,11 @@
   inset: 0;
   z-index: 30;
   pointer-events: none;
-  background: rgba(226, 29, 72, 0.24);
-  animation: motoHitFlash 180ms ease-out;
+  background: rgba(255, 86, 48, 0.28);
+  animation: busGameHitPulse 190ms ease-out;
 }
 
-@keyframes motoHitFlash {
+@keyframes busGameHitPulse {
   from {
     opacity: 1;
   }
@@ -45,11 +45,11 @@
 .mini-game-connect-panel,
 .mini-game-overlay-card,
 .hud-panel,
-.bike-game-status-chip,
-.bike-game-race-card,
+.bus-game-status-chip,
+.bus-game-route-card,
 .mini-game-message {
   border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(18, 19, 18, 0.84);
+  background: rgba(21, 21, 20, 0.82);
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.34);
   backdrop-filter: blur(16px);
 }
@@ -73,20 +73,20 @@
   display: grid;
   place-items: center;
   border-radius: 8px;
-  color: #111111;
-  background: linear-gradient(135deg, #facc15, #ef4444);
+  color: #10100f;
+  background: linear-gradient(135deg, #facc15, #34d399);
 }
 
 .mini-game-connect-panel h1 {
   margin: 0;
-  font-size: clamp(42px, 8vw, 76px);
-  line-height: 0.9;
+  font-size: clamp(38px, 7vw, 68px);
+  line-height: 0.92;
   letter-spacing: 0;
 }
 
 .mini-game-connect-panel p,
 .mini-game-overlay-card p {
-  max-width: 380px;
+  max-width: 390px;
   margin: 0;
   color: #e7e5df;
   line-height: 1.5;
@@ -114,7 +114,7 @@
   padding: 8px 13px;
   border-radius: 8px;
   color: #fef3c7;
-  background: rgba(250, 204, 21, 0.16);
+  background: rgba(245, 158, 11, 0.18);
   letter-spacing: 0.16em;
 }
 
@@ -127,34 +127,34 @@
   align-items: center;
   justify-content: center;
   gap: 9px;
-  color: #111111;
-  background: linear-gradient(135deg, #facc15, #ef4444);
+  color: #11110f;
+  background: linear-gradient(135deg, #fbbf24, #34d399);
   font-weight: 900;
   cursor: pointer;
 }
 
-.bike-game-hud {
+.bus-game-hud {
   position: fixed;
   top: 14px;
   left: 14px;
   z-index: 8;
   display: flex;
-  max-width: calc(100vw - 170px);
+  max-width: calc(100vw - 190px);
   gap: 8px;
   flex-wrap: wrap;
 }
 
 .hud-panel {
-  min-width: 84px;
+  min-width: 82px;
   min-height: 54px;
   padding: 9px 11px;
   border-radius: 8px;
 }
 
 .hud-panel small,
-.bike-game-race-card small {
+.bus-game-route-card small {
   display: block;
-  color: #facc15;
+  color: #fbbf24;
   font-size: 10px;
   font-weight: 950;
   letter-spacing: 0.08em;
@@ -173,16 +173,15 @@
   white-space: nowrap;
 }
 
-.hud-panel.armor {
-  min-width: 102px;
+.hud-panel.lives {
+  min-width: 112px;
 }
 
-.hud-panel.armor strong {
+.hud-panel.lives strong {
   color: #fb7185;
-  letter-spacing: 0.08em;
 }
 
-.bike-game-status-chip {
+.bus-game-status-chip {
   position: fixed;
   top: 14px;
   right: 14px;
@@ -193,12 +192,12 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: #fef3c7;
+  color: #d1fae5;
   font-weight: 900;
   white-space: nowrap;
 }
 
-.bike-game-race-card {
+.bus-game-route-card {
   position: fixed;
   left: 14px;
   bottom: 16px;
@@ -209,7 +208,7 @@
   border-radius: 8px;
 }
 
-.bike-game-race-card strong {
+.bus-game-route-card strong {
   display: block;
   margin-top: 5px;
   color: #ffffff;
@@ -258,7 +257,7 @@
 }
 
 @media (max-width: 840px) {
-  .bike-game-hud {
+  .bus-game-hud {
     top: 8px;
     left: 8px;
     right: 8px;
@@ -279,14 +278,19 @@
   }
 
   .hud-panel strong {
-    font-size: 16px;
+    font-size: 17px;
   }
 
-  .hud-panel.armor {
+  .hud-panel.lives {
     min-width: 0;
   }
 
-  .bike-game-status-chip {
+  .hud-panel.lives svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .bus-game-status-chip {
     top: auto;
     right: 8px;
     bottom: 128px;
@@ -294,7 +298,7 @@
     font-size: 13px;
   }
 
-  .bike-game-race-card {
+  .bus-game-route-card {
     left: 8px;
     right: 8px;
     bottom: 62px;
@@ -302,7 +306,7 @@
     min-height: 52px;
   }
 
-  .bike-game-race-card strong {
+  .bus-game-route-card strong {
     font-size: 14px;
   }
 
@@ -319,7 +323,7 @@
     padding: 22px;
   }
 
-  .bike-game-hud {
+  .bus-game-hud {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
@@ -331,7 +335,7 @@
     font-size: 15px;
   }
 
-  .bike-game-status-chip {
+  .bus-game-status-chip {
     bottom: 120px;
   }
 }
