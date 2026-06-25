@@ -48,17 +48,12 @@ export default function AppRouter() {
           element={<CharacterControllerPage />}
         />
 
-        <Route path="/game" element={<MiniGamePage />} />
-
-        <Route
-          path="/game-controller/:roomId"
-          element={<MiniGameControllerPage />}
-        />
-
         <Route
           path="*"
           element={<Navigate to="/" replace />}
         />
+              <Route path="/game" element={<MiniGamePage />} />
+        <Route path="/game-controller/:roomId" element={<MiniGameControllerPage />} />
       </Routes>
     </BrowserRouter>
   );

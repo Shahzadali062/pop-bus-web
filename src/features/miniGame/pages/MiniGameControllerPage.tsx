@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import {
   Activity,
   Gamepad2,
@@ -15,11 +15,10 @@ import { SERVER_URL } from "../../../shared/config/server";
 import "./MiniGameControllerPage.css";
 
 type GameControl =
+  | "jump"
   | "boost"
-  | "drift-down"
-  | "drift-up"
-  | "pause"
   | "restart"
+  | "pause"
   | "resume"
   | "start";
 
@@ -28,7 +27,7 @@ type JoystickVector = {
   y: number;
 };
 
-const KNOB_LIMIT = 58;
+const KNOB_LIMIT = 52;
 
 export default function MiniGameControllerPage() {
   const { roomId = "" } = useParams();
@@ -37,34 +36,22 @@ export default function MiniGameControllerPage() {
   const joystickVectorRef = useRef<JoystickVector>({ x: 0, y: 0 });
   const joystickActiveRef = useRef(false);
   const activePointerIdRef = useRef<number | null>(null);
-  const driftPointerIdRef = useRef<number | null>(null);
 
   const cleanRoomId = roomId
     .trim()
     .toUpperCase()
     .replace(/[^A-Z0-9-]/g, "");
 
-  const [socketStatus, setSocketStatus] = useState(() =>
-    cleanRoomId ? "Connecting" : "Invalid room"
-  );
-  const [message, setMessage] = useState("Ready for dispatch.");
+  const [socketStatus, setSocketStatus] = useState("Connecting");
+  const [message, setMessage] = useState("Use joystick to move.");
   const [knob, setKnob] = useState({ x: 0, y: 0 });
   const [isPaused, setIsPaused] = useState(false);
-  const [isDrifting, setIsDrifting] = useState(false);
-
-  const sendJoystick = useCallback(
-    (x: number, y: number) => {
-      socketRef.current?.emit("game:joystick-command", {
-        roomId: cleanRoomId,
-        x,
-        y,
-      });
-    },
-    [cleanRoomId]
-  );
 
   useEffect(() => {
-    if (!cleanRoomId) return;
+    if (!cleanRoomId) {
+      setSocketStatus("Invalid room");
+      return;
+    }
 
     const socket = io(SERVER_URL, {
       transports: ["websocket"],
@@ -107,12 +94,12 @@ export default function MiniGameControllerPage() {
       if (socketRef.current?.connected) {
         sendJoystick(vector.x, vector.y);
       }
-    }, 50);
+    }, 60);
 
     return () => {
       window.clearInterval(interval);
     };
-  }, [sendJoystick]);
+  }, []);
 
   function sendControl(control: GameControl) {
     if (!socketRef.current?.connected) {
@@ -134,6 +121,14 @@ export default function MiniGameControllerPage() {
     );
   }
 
+  function sendJoystick(x: number, y: number) {
+    socketRef.current?.emit("game:joystick-command", {
+      roomId: cleanRoomId,
+      x,
+      y,
+    });
+  }
+
   function updateJoystickFromPointer(clientX: number, clientY: number) {
     const base = joystickBaseRef.current;
 
@@ -147,6 +142,7 @@ export default function MiniGameControllerPage() {
 
     let dx = clientX - centerX;
     let dy = clientY - centerY;
+
     const distance = Math.sqrt(dx * dx + dy * dy);
 
     if (distance > KNOB_LIMIT) {
@@ -174,35 +170,16 @@ export default function MiniGameControllerPage() {
     sendJoystick(0, 0);
   }
 
-  function startDrift(pointerId: number) {
-    driftPointerIdRef.current = pointerId;
-    setIsDrifting(true);
-    sendControl("drift-down");
-    setMessage("Drift engaged.");
-  }
-
-  function stopDrift(pointerId?: number) {
-    if (pointerId !== undefined && driftPointerIdRef.current !== pointerId) {
-      return;
-    }
-
-    driftPointerIdRef.current = null;
-    setIsDrifting(false);
-    sendControl("drift-up");
-    setMessage("Grip restored.");
-  }
-
   function togglePause() {
     if (isPaused) {
       sendControl("resume");
       setIsPaused(false);
-      setMessage("Route resumed.");
-      return;
+      setMessage("Game resumed.");
+    } else {
+      sendControl("pause");
+      setIsPaused(true);
+      setMessage("Game paused.");
     }
-
-    sendControl("pause");
-    setIsPaused(true);
-    setMessage("Route paused.");
   }
 
   return (
@@ -216,11 +193,13 @@ export default function MiniGameControllerPage() {
 
             <div>
               <span>Mobile Controller</span>
-              <h1>Pop Bus Rush</h1>
+              <h1>Coin Runner</h1>
             </div>
           </div>
 
-          <div className="game-controller-pill">{socketStatus}</div>
+          <div className="game-controller-pill">
+            {socketStatus}
+          </div>
         </header>
 
         <section className="game-controller-room">
@@ -235,7 +214,7 @@ export default function MiniGameControllerPage() {
             onClick={() => {
               sendControl("start");
               setIsPaused(false);
-              setMessage("Shift started.");
+              setMessage("Game started.");
             }}
           >
             <Play size={20} />
@@ -257,7 +236,7 @@ export default function MiniGameControllerPage() {
             onClick={() => {
               sendControl("restart");
               setIsPaused(false);
-              setMessage("Route reset.");
+              setMessage("Game restarted.");
             }}
           >
             <RotateCcw size={20} />
@@ -296,7 +275,7 @@ export default function MiniGameControllerPage() {
               }}
               onLostPointerCapture={resetJoystick}
             >
-              <div className="joystick-crosshair" />
+              <div className="joystick-rings" />
               <div
                 className="joystick-knob"
                 style={{
@@ -307,35 +286,32 @@ export default function MiniGameControllerPage() {
               </div>
             </div>
 
-            <p>Drive</p>
+            <p>Move</p>
           </div>
 
           <div className="game-action-column">
             <button
               type="button"
-              className="game-big-action turbo"
+              className="game-big-action"
               onClick={() => {
-                sendControl("boost");
-                setMessage("Turbo fired.");
+                sendControl("jump");
+                setMessage("Jump!");
               }}
             >
-              <Zap size={24} />
-              Turbo
+              <Activity size={24} />
+              Jump
             </button>
 
             <button
               type="button"
-              className={isDrifting ? "game-big-action drift active" : "game-big-action drift"}
-              onPointerDown={(event) => {
-                event.currentTarget.setPointerCapture(event.pointerId);
-                startDrift(event.pointerId);
+              className="game-big-action boost"
+              onClick={() => {
+                sendControl("boost");
+                setMessage("Speed boost activated.");
               }}
-              onPointerUp={(event) => stopDrift(event.pointerId)}
-              onPointerCancel={(event) => stopDrift(event.pointerId)}
-              onLostPointerCapture={() => stopDrift()}
             >
-              <Activity size={24} />
-              Drift
+              <Zap size={24} />
+              Boost
             </button>
           </div>
         </section>
@@ -345,3 +321,4 @@ export default function MiniGameControllerPage() {
     </main>
   );
 }
+
