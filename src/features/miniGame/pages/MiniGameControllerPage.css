@@ -4,7 +4,7 @@
   place-items: center;
   padding: max(14px, env(safe-area-inset-top)) 14px max(14px, env(safe-area-inset-bottom));
   color: #ffffff;
-  background: #171716;
+  background: #151716;
   touch-action: none;
   user-select: none;
   font-family:
@@ -22,7 +22,7 @@
   padding: 16px;
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 8px;
-  background: rgba(24, 24, 22, 0.94);
+  background: rgba(20, 21, 20, 0.95);
   box-shadow: 0 28px 78px rgba(0, 0, 0, 0.42);
 }
 
@@ -47,13 +47,13 @@
   display: grid;
   place-items: center;
   border-radius: 8px;
-  color: #10100f;
-  background: linear-gradient(135deg, #fbbf24, #34d399);
+  color: #111111;
+  background: linear-gradient(135deg, #facc15, #ef4444);
 }
 
 .game-controller-title span {
   display: block;
-  color: #fbbf24;
+  color: #facc15;
   font-size: 11px;
   font-weight: 950;
   letter-spacing: 0.08em;
@@ -63,7 +63,7 @@
 
 .game-controller-title h1 {
   margin: 4px 0 0;
-  font-size: clamp(24px, 7vw, 32px);
+  font-size: clamp(25px, 7vw, 34px);
   line-height: 1;
   letter-spacing: 0;
   white-space: nowrap;
@@ -80,7 +80,7 @@
 .game-controller-pill {
   flex: 0 0 auto;
   padding: 8px 10px;
-  color: #d1fae5;
+  color: #fef3c7;
   font-size: 12px;
   font-weight: 900;
 }
@@ -96,7 +96,7 @@
 }
 
 .game-controller-room small {
-  color: #fbbf24;
+  color: #facc15;
   font-size: 11px;
   font-weight: 950;
   letter-spacing: 0.08em;
@@ -132,8 +132,8 @@
 }
 
 .game-primary-button {
-  color: #11110f;
-  background: linear-gradient(135deg, #fbbf24, #34d399);
+  color: #111111;
+  background: linear-gradient(135deg, #facc15, #ef4444);
 }
 
 .game-secondary-button {
@@ -161,7 +161,7 @@
 
 .joystick-zone p {
   margin: 0;
-  color: #fbbf24;
+  color: #facc15;
   font-size: 12px;
   font-weight: 950;
   letter-spacing: 0.12em;
@@ -169,26 +169,26 @@
 }
 
 .virtual-joystick {
-  width: 174px;
-  height: 174px;
+  width: 184px;
+  height: 184px;
   position: relative;
   display: grid;
   place-items: center;
   border-radius: 50%;
   background:
-    radial-gradient(circle, rgba(52, 211, 153, 0.17), rgba(255, 255, 255, 0.06) 62%),
-    #20201e;
+    radial-gradient(circle, rgba(250, 204, 21, 0.14), rgba(255, 255, 255, 0.06) 62%),
+    #20201f;
   border: 1px solid rgba(255, 255, 255, 0.18);
   box-shadow:
-    inset 0 0 30px rgba(52, 211, 153, 0.12),
+    inset 0 0 32px rgba(239, 68, 68, 0.12),
     0 18px 48px rgba(0, 0, 0, 0.34);
   touch-action: none;
 }
 
 .joystick-crosshair {
   position: absolute;
-  inset: 22px;
-  border: 1px dashed rgba(251, 191, 36, 0.42);
+  inset: 24px;
+  border: 1px dashed rgba(250, 204, 21, 0.42);
   border-radius: 50%;
 }
 
@@ -197,7 +197,7 @@
   content: "";
   position: absolute;
   inset: 50% auto auto 50%;
-  background: rgba(251, 191, 36, 0.24);
+  background: rgba(250, 204, 21, 0.24);
   transform: translate(-50%, -50%);
 }
 
@@ -211,17 +211,47 @@
   height: 1px;
 }
 
+.joystick-label {
+  position: absolute;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.joystick-label.up {
+  top: 18px;
+}
+
+.joystick-label.down {
+  bottom: 18px;
+}
+
+.joystick-label.left {
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%) rotate(-90deg);
+}
+
+.joystick-label.right {
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%) rotate(90deg);
+}
+
 .joystick-knob {
-  width: 62px;
-  height: 62px;
+  width: 64px;
+  height: 64px;
   position: absolute;
   display: grid;
   place-items: center;
   border-radius: 50%;
-  color: #11110f;
-  background: linear-gradient(135deg, #34d399, #facc15);
-  box-shadow: 0 14px 34px rgba(52, 211, 153, 0.28);
-  transition: transform 65ms linear;
+  color: #111111;
+  background: linear-gradient(135deg, #facc15, #ef4444);
+  box-shadow: 0 14px 34px rgba(239, 68, 68, 0.28);
+  transition: transform 55ms linear;
   pointer-events: none;
 }
 
@@ -232,7 +262,7 @@
 
 .game-big-action {
   min-width: 0;
-  min-height: 82px;
+  min-height: 84px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 8px;
   display: grid;
@@ -246,18 +276,18 @@
   touch-action: manipulation;
 }
 
-.game-big-action.turbo {
-  color: #11110f;
-  background: linear-gradient(135deg, #f97316, #facc15);
+.game-big-action.nitro {
+  color: #111111;
+  background: linear-gradient(135deg, #facc15, #ef4444);
 }
 
-.game-big-action.drift {
-  background: #24362d;
+.game-big-action.brake {
+  background: #342225;
 }
 
-.game-big-action.drift.active {
-  color: #11110f;
-  background: linear-gradient(135deg, #34d399, #a3e635);
+.game-big-action.brake.active {
+  color: #111111;
+  background: linear-gradient(135deg, #ffffff, #f97316);
 }
 
 .game-big-action:active,
@@ -295,7 +325,7 @@
   }
 
   .game-controller-title h1 {
-    font-size: 24px;
+    font-size: 25px;
   }
 
   .game-controller-pill {
@@ -320,8 +350,8 @@
   }
 
   .virtual-joystick {
-    width: 154px;
-    height: 154px;
+    width: 158px;
+    height: 158px;
   }
 
   .joystick-knob {
@@ -329,8 +359,12 @@
     height: 56px;
   }
 
+  .joystick-label {
+    font-size: 9px;
+  }
+
   .game-big-action {
-    min-height: 74px;
+    min-height: 76px;
     font-size: 13px;
   }
 }
