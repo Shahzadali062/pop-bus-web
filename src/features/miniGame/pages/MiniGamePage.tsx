@@ -19,6 +19,12 @@ type CollectEffect = {
   maxLife: number;
 };
 
+type GameBestScore = {
+  score?: number;
+  roomId?: string;
+  updatedAt?: string;
+};
+
 const PUBLIC_WEB_URL =
   typeof window !== "undefined"
     ? window.location.origin
@@ -53,8 +59,7 @@ export default function MiniGamePage() {
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const socketRef = useRef<Socket | null>(null);
 
-  const roomIdRef = useRef(createRoomId());
-  const roomId = roomIdRef.current;
+  const [roomId] = useState(createRoomId);
 
   const joystickRef = useRef({
     x: 0,
@@ -82,6 +87,7 @@ export default function MiniGamePage() {
   const screenShakeRef = useRef(0);
 
   const scoreRef = useRef(0);
+  const bestScoreRef = useRef(0);
   const livesRef = useRef(3);
   const levelRef = useRef(1);
   const timeLeftRef = useRef(75);
@@ -96,6 +102,7 @@ export default function MiniGamePage() {
   const [socketStatus, setSocketStatus] = useState("Connecting");
   const [gameStatus, setGameStatus] = useState<GameStatus>("waiting");
   const [score, setScore] = useState(0);
+  const [bestScore, setBestScore] = useState(0);
   const [lives, setLives] = useState(3);
   const [level, setLevel] = useState(1);
   const [timeLeft, setTimeLeft] = useState(75);
@@ -154,6 +161,48 @@ export default function MiniGamePage() {
     gameStatusRef.current = status;
     setGameStatus(status);
   }, []);
+
+  const applyBestScore = useCallback((payload?: GameBestScore) => {
+    const nextBestScore =
+      typeof payload?.score === "number" && Number.isFinite(payload.score)
+        ? Math.max(0, Math.floor(payload.score))
+        : 0;
+
+    bestScoreRef.current = nextBestScore;
+    setBestScore(nextBestScore);
+  }, []);
+
+  const submitBestScore = useCallback(
+    (nextScore: number) => {
+      const scoreToSubmit = Math.max(0, Math.floor(nextScore));
+
+      if (scoreToSubmit <= 0 || !socketRef.current?.connected) {
+        return;
+      }
+
+      socketRef.current.emit(
+        "game:score-submit",
+        {
+          roomId,
+          score: scoreToSubmit,
+        },
+        (response?: {
+          ok?: boolean;
+          bestScore?: GameBestScore;
+          updated?: boolean;
+        }) => {
+          if (response?.bestScore) {
+            applyBestScore(response.bestScore);
+          }
+
+          if (response?.updated) {
+            setMessage("New best score!");
+          }
+        }
+      );
+    },
+    [applyBestScore, roomId]
+  );
 
   const resetGame = useCallback(() => {
     scoreRef.current = 0;
@@ -270,6 +319,15 @@ export default function MiniGamePage() {
           }
         }
       );
+
+      socket.emit(
+        "game:best-score:get",
+        (response?: { ok?: boolean; bestScore?: GameBestScore }) => {
+          if (response?.bestScore) {
+            applyBestScore(response.bestScore);
+          }
+        }
+      );
     });
 
     socket.on("disconnect", () => {
@@ -310,11 +368,15 @@ export default function MiniGamePage() {
       }
     );
 
+    socket.on("game:best-score-updated", (payload: GameBestScore) => {
+      applyBestScore(payload);
+    });
+
     return () => {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [handleControl, roomId]);
+  }, [applyBestScore, handleControl, roomId]);
 
   useEffect(() => {
     if (!controllerConnected) return;
@@ -520,6 +582,7 @@ export default function MiniGamePage() {
         timeLeftRef.current = Math.max(0, timeLeftRef.current - delta);
 
         if (timeLeftRef.current <= 0) {
+          submitBestScore(scoreRef.current);
           setStatus("finished");
           setMessage(`Mission complete. Final score: ${scoreRef.current}`);
         }
@@ -718,6 +781,7 @@ export default function MiniGamePage() {
           if (coin.position.distanceTo(player.position) < 0.72) {
             scoreRef.current += 1;
             setScore(scoreRef.current);
+            submitBestScore(scoreRef.current);
             createCollectEffect(scene, coin.position.clone());
 
             const nextLevel = Math.min(9, Math.floor(scoreRef.current / 6) + 1);
@@ -763,6 +827,7 @@ export default function MiniGamePage() {
             window.setTimeout(() => setHitFlash(false), 180);
 
             if (livesRef.current <= 0) {
+              submitBestScore(scoreRef.current);
               setStatus("finished");
               setMessage(`Game over. Final score: ${scoreRef.current}`);
             } else {
@@ -864,7 +929,14 @@ export default function MiniGamePage() {
       obstaclesRef.current = [];
       effectsRef.current = [];
     };
-  }, [controllerConnected, createCollectEffect, playClip, resetGame, setStatus]);
+  }, [
+    controllerConnected,
+    createCollectEffect,
+    playClip,
+    resetGame,
+    setStatus,
+    submitBestScore,
+  ]);
 
   async function copyControllerLink() {
     await navigator.clipboard.writeText(controllerUrl);
@@ -913,6 +985,11 @@ export default function MiniGamePage() {
             <div className="hud-card">
               <small>Score</small>
               <strong>{score}</strong>
+            </div>
+
+            <div className="hud-card best-score">
+              <small>Best</small>
+              <strong>{bestScore}</strong>
             </div>
 
             <div className="hud-card">

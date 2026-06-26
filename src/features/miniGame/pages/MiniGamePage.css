@@ -156,6 +156,10 @@
   font-size: 22px;
 }
 
+.hud-card.best-score strong {
+  color: #facc15;
+}
+
 .hud-card.lives strong {
   color: #fb7185;
 }
