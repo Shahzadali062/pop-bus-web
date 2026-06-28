@@ -26,9 +26,9 @@ type CampusLandmark = {
 
 const CHULA_CENTER: LngLat = [100.53124, 13.73857];
 
-const CHULA_BOUNDS: [LngLat, LngLat] = [
-  [100.5237, 13.7322],
-  [100.5389, 13.7449],
+const CHULA_VIEW_BOUNDS: [LngLat, LngLat] = [
+  [100.516, 13.724],
+  [100.547, 13.752],
 ];
 
 const CHULA_BOUNDARY: LngLat[] = [
@@ -43,6 +43,8 @@ const CHULA_BOUNDARY: LngLat[] = [
   [100.5248099, 13.7362107],
   [100.5244538, 13.7437529],
 ];
+
+const OUTSIDE_MASK_COLOR = "#8589c4";
 
 const LANDMARKS: CampusLandmark[] = [
   {
@@ -78,7 +80,7 @@ const CAMERA_PRESETS: Record<
 > = {
   inside: {
     center: CHULA_CENTER,
-    zoom: 16.85,
+    zoom: 16.9,
     pitch: 0,
     bearing: 0,
   },
@@ -89,10 +91,10 @@ const CAMERA_PRESETS: Record<
     bearing: 0,
   },
   threeD: {
-    center: [100.5312, 13.73855],
-    zoom: 17.35,
-    pitch: 62,
-    bearing: -32,
+    center: [100.5316, 13.7386],
+    zoom: 13.8,
+    pitch: 38,
+    bearing: -18,
   },
 };
 
@@ -183,7 +185,7 @@ function add3DBuildings(map: MapLibreMap) {
         type: "fill-extrusion",
         source: sourceId,
         "source-layer": "building",
-        minzoom: 15,
+        minzoom: 12.8,
         paint: {
           "fill-extrusion-color": [
             "interpolate",
@@ -327,8 +329,8 @@ function addChulaLayers(map: MapLibreMap) {
       type: "fill",
       source: "mangos-chula-mask",
       paint: {
-        "fill-color": "#020617",
-        "fill-opacity": 0.66,
+        "fill-color": OUTSIDE_MASK_COLOR,
+        "fill-opacity": 1,
       },
     });
   }
@@ -363,9 +365,9 @@ export default function MangosMapPage() {
       style: "https://tiles.openfreemap.org/styles/liberty",
       center: startCamera.center,
       zoom: startCamera.zoom,
-      minZoom: 15.25,
+      minZoom: 12.8,
       maxZoom: 20,
-      maxBounds: CHULA_BOUNDS,
+      maxBounds: CHULA_VIEW_BOUNDS,
       pitch: startCamera.pitch,
       bearing: startCamera.bearing,
       attributionControl: false,
