@@ -1,5 +1,7 @@
 ﻿import { Link } from "react-router-dom";
 
+import { MapPinned } from "lucide-react";
+
 export default function HomePage() {
   return (
     <main
@@ -36,6 +38,27 @@ export default function HomePage() {
             marginTop: 24,
           }}
         >
+          <Link
+            to="/mangos-map"
+            style={{
+              minHeight: 56,
+              padding: 16,
+              borderRadius: 16,
+              background: "linear-gradient(135deg, #059669, #f59e0b)",
+              color: "#ffffff",
+              fontWeight: 800,
+              textAlign: "center",
+              textDecoration: "none",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 10,
+            }}
+          >
+            <MapPinned size={21} strokeWidth={2.6} />
+            MANGOs Map
+          </Link>
+
           <Link
             to="/driver"
             style={{

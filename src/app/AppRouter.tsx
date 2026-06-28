@@ -14,6 +14,7 @@ import CharacterAnimationPage from "../features/characterAnimation/pages/Charact
 import CharacterControllerPage from "../features/characterAnimation/pages/CharacterControllerPage";
 import MiniGamePage from "../features/miniGame/pages/MiniGamePage";
 import MiniGameControllerPage from "../features/miniGame/pages/MiniGameControllerPage";
+import MangosMapPage from "../features/mangosMap/pages/MangosMapPage";
 
 export default function AppRouter() {
   return (
@@ -31,6 +32,11 @@ export default function AppRouter() {
         <Route
           path="/map"
           element={<LiveMapPage />}
+        />
+
+        <Route
+          path="/mangos-map"
+          element={<MangosMapPage />}
         />
 
         <Route
