@@ -1,24 +1,12 @@
 .mangos-map-page {
+  position: relative;
   width: 100vw;
   height: 100dvh;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
   overflow: hidden;
-  background: #07111e;
+  background: #020617;
   color: #ffffff;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
-}
-
-.mangos-map-stage {
-  position: relative;
-  min-width: 0;
-  height: 100dvh;
-  overflow: hidden;
-  background:
-    linear-gradient(140deg, rgba(8, 47, 73, 0.32), transparent 34%),
-    linear-gradient(315deg, rgba(20, 83, 45, 0.26), transparent 38%),
-    #07111e;
 }
 
 .mangos-map-canvas {
@@ -26,10 +14,8 @@
   inset: 0;
 }
 
-.mangos-map-canvas canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
+.mangos-map-canvas .maplibregl-canvas {
+  outline: none;
 }
 
 .mangos-map-topbar {
@@ -37,7 +23,7 @@
   top: 18px;
   left: 18px;
   right: 18px;
-  z-index: 8;
+  z-index: 12;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -48,10 +34,10 @@
 .mangos-map-back,
 .mangos-map-brand,
 .mangos-map-viewbar,
-.mangos-map-panel,
-.mangos-campus-list button {
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  background: rgba(2, 6, 23, 0.78);
+.mangos-map-panel {
+  border: 1px solid rgba(248, 187, 217, 0.32);
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.82);
   box-shadow: 0 20px 55px rgba(0, 0, 0, 0.34);
   backdrop-filter: blur(18px);
 }
@@ -61,7 +47,6 @@
   height: 44px;
   display: grid;
   place-items: center;
-  border-radius: 8px;
   color: #ffffff;
   text-decoration: none;
   pointer-events: auto;
@@ -73,7 +58,6 @@
   align-items: center;
   gap: 11px;
   padding: 9px 13px;
-  border-radius: 8px;
   pointer-events: auto;
 }
 
@@ -83,7 +67,7 @@
   display: grid;
   place-items: center;
   border-radius: 8px;
-  background: linear-gradient(135deg, #059669, #f59e0b);
+  background: linear-gradient(135deg, #ec4899, #f59e0b);
 }
 
 .mangos-map-brand strong,
@@ -97,9 +81,9 @@
 .mangos-map-brand small,
 .mangos-map-heading span,
 .mangos-map-stats small,
-.mangos-campus-list small {
+.mangos-landmark-list small {
   display: block;
-  color: #a7f3d0;
+  color: #fbcfe8;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.05em;
@@ -110,11 +94,10 @@
   position: absolute;
   left: 18px;
   bottom: 18px;
-  z-index: 9;
+  z-index: 12;
   display: flex;
   gap: 8px;
   padding: 8px;
-  border-radius: 8px;
 }
 
 .mangos-map-viewbar button {
@@ -126,105 +109,58 @@
   border: 1px solid transparent;
   border-radius: 8px;
   padding: 0 12px;
-  background: rgba(15, 23, 42, 0.74);
-  color: #dbeafe;
+  background: rgba(15, 23, 42, 0.78);
+  color: #fce7f3;
   font-weight: 900;
   cursor: pointer;
 }
 
 .mangos-map-viewbar button.active {
-  border-color: rgba(251, 191, 36, 0.7);
-  background: rgba(217, 119, 6, 0.34);
+  border-color: rgba(244, 114, 182, 0.82);
+  background: rgba(190, 24, 93, 0.44);
   color: #ffffff;
 }
 
 .mangos-map-panel {
-  height: 100dvh;
+  position: absolute;
+  top: 92px;
+  right: 18px;
+  z-index: 12;
+  width: min(340px, calc(100vw - 36px));
+  max-height: calc(100dvh - 128px);
   overflow-y: auto;
-  padding: 26px;
-  border-width: 0 0 0 1px;
-  border-radius: 0;
-  background:
-    linear-gradient(180deg, rgba(15, 23, 42, 0.94), rgba(2, 6, 23, 0.96)),
-    #020617;
+  padding: 18px;
 }
 
 .mangos-map-heading {
-  margin-bottom: 22px;
+  margin-bottom: 16px;
 }
 
 .mangos-map-heading h1 {
   margin-top: 6px;
-  font-size: 30px;
-}
-
-.mangos-campus-list {
-  display: grid;
-  gap: 10px;
-}
-
-.mangos-campus-list button {
-  width: 100%;
-  min-height: 74px;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-  border-radius: 8px;
-  padding: 13px;
-  color: #ffffff;
-  text-align: left;
-  cursor: pointer;
-}
-
-.mangos-campus-list button.active {
-  border-color: rgba(52, 211, 153, 0.65);
-  background: rgba(20, 83, 45, 0.42);
-}
-
-.mangos-campus-list strong {
-  display: block;
-  overflow: hidden;
-  color: #ffffff;
-  font-size: 14px;
-  font-weight: 950;
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.mangos-campus-list small {
-  margin-top: 6px;
-  color: #bae6fd;
-}
-
-.mangos-campus-swatch {
-  width: 14px;
-  height: 42px;
-  border-radius: 999px;
-  box-shadow: 0 0 28px currentColor;
+  font-size: 24px;
+  line-height: 1.08;
 }
 
 .mangos-map-stats {
   display: grid;
   gap: 10px;
-  margin-top: 22px;
 }
 
 .mangos-map-stats div {
-  min-height: 66px;
+  min-height: 62px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 12px;
-  padding: 13px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
+  padding: 12px;
+  border: 1px solid rgba(248, 187, 217, 0.18);
   border-radius: 8px;
-  background: rgba(15, 23, 42, 0.64);
+  background: rgba(15, 23, 42, 0.68);
 }
 
 .mangos-map-stats svg {
-  color: #fbbf24;
+  color: #f9a8d4;
 }
 
 .mangos-map-stats strong {
@@ -236,83 +172,66 @@
 }
 
 .mangos-landmark-list {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: 8px;
-  margin-top: 22px;
+  margin-top: 16px;
 }
 
 .mangos-landmark-list span {
-  min-height: 34px;
-  display: inline-flex;
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 999px;
-  padding: 7px 10px;
-  background: rgba(15, 23, 42, 0.62);
-  color: #e5e7eb;
-  font-size: 12px;
-  font-weight: 800;
+  border: 1px solid rgba(248, 187, 217, 0.18);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: rgba(15, 23, 42, 0.64);
 }
 
 .mangos-landmark-list i {
-  width: 9px;
-  height: 9px;
+  width: 10px;
+  height: 10px;
   border-radius: 999px;
+  background: #f59e0b;
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.65);
 }
 
-@media (max-width: 980px) {
-  .mangos-map-page {
-    grid-template-columns: 1fr;
-  }
-
-  .mangos-map-panel {
-    position: fixed;
-    left: 12px;
-    right: 12px;
-    bottom: 12px;
-    z-index: 12;
-    height: auto;
-    max-height: 42dvh;
-    overflow-y: auto;
-    padding: 14px;
-    border: 1px solid rgba(148, 163, 184, 0.2);
-    border-radius: 8px;
-  }
-
-  .mangos-map-heading {
-    display: none;
-  }
-
-  .mangos-campus-list {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .mangos-campus-list button {
-    min-height: 62px;
-  }
-
-  .mangos-map-stats {
-    grid-template-columns: 1fr 1fr 1fr;
-    margin-top: 12px;
-  }
-
-  .mangos-map-stats div {
-    min-height: 58px;
-    padding: 10px;
-  }
-
-  .mangos-landmark-list {
-    margin-top: 12px;
-  }
-
-  .mangos-map-viewbar {
-    bottom: calc(42dvh + 28px);
-  }
+.mangos-landmark-list b {
+  overflow: hidden;
+  color: #ffffff;
+  font-size: 12px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-@media (max-width: 640px) {
+.mangos-landmark-list small {
+  color: #fde68a;
+  font-size: 9.5px;
+}
+
+.mangos-map-page .maplibregl-ctrl-group {
+  border-radius: 8px !important;
+  overflow: hidden;
+  background: rgba(2, 6, 23, 0.86) !important;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.34) !important;
+}
+
+.mangos-map-page .maplibregl-ctrl button {
+  background-color: rgba(2, 6, 23, 0.86) !important;
+}
+
+.mangos-map-page .maplibregl-ctrl button span {
+  filter: invert(1);
+}
+
+.mangos-map-page .maplibregl-ctrl-attrib {
+  border-radius: 8px 8px 0 0;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+@media (max-width: 760px) {
   .mangos-map-topbar {
     top: 12px;
     left: 12px;
@@ -342,39 +261,18 @@
     font-size: 9.5px;
   }
 
-  .mangos-map-viewbar {
-    left: 12px;
-    bottom: calc(45dvh + 24px);
-    max-width: calc(100vw - 24px);
-    overflow-x: auto;
-  }
-
-  .mangos-map-viewbar button {
-    min-width: 94px;
-    padding: 0 10px;
-    font-size: 12px;
-  }
-
   .mangos-map-panel {
-    max-height: 45dvh;
+    left: 12px;
+    right: 12px;
+    top: auto;
+    bottom: 74px;
+    width: auto;
+    max-height: 34dvh;
     padding: 12px;
   }
 
-  .mangos-campus-list {
-    grid-template-columns: 1fr;
-  }
-
-  .mangos-campus-list button {
-    min-height: 54px;
-    padding: 10px;
-  }
-
-  .mangos-campus-list strong {
-    font-size: 13px;
-  }
-
-  .mangos-campus-list small {
-    font-size: 9.5px;
+  .mangos-map-heading {
+    display: none;
   }
 
   .mangos-map-stats {
@@ -382,11 +280,53 @@
   }
 
   .mangos-map-stats div {
-    min-height: 52px;
+    min-height: 50px;
+    padding: 9px;
+  }
+
+  .mangos-landmark-list {
+    grid-template-columns: 1fr 1fr;
+    margin-top: 10px;
   }
 
   .mangos-landmark-list span {
-    min-height: 30px;
+    min-height: 36px;
+    padding: 7px 8px;
+  }
+
+  .mangos-landmark-list b {
     font-size: 11px;
+  }
+
+  .mangos-landmark-list small {
+    display: none;
+  }
+
+  .mangos-map-viewbar {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    overflow-x: auto;
+  }
+
+  .mangos-map-viewbar button {
+    flex: 1 0 98px;
+    min-height: 38px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+
+  .mangos-map-page .maplibregl-ctrl-bottom-right {
+    display: none;
+  }
+}
+
+@media (max-width: 390px) {
+  .mangos-map-panel {
+    max-height: 32dvh;
+  }
+
+  .mangos-landmark-list {
+    grid-template-columns: 1fr;
   }
 }
